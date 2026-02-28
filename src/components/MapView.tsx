@@ -13,7 +13,7 @@ import { ActiveAlert } from "@/types";
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
 const THEMES = {
-  dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
+  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
   light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
 };
 
@@ -149,7 +149,7 @@ export default function MapView() {
         className="hide-labels"
       >
         <ZoomListener />
-        <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
+        <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' />
         {polygons && (
           <AlertFitter alerts={alerts} polygons={polygons} />
         )}
