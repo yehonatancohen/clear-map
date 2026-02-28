@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ─── Polygon pulse animation for double/salvo alerts ─── */
+@keyframes polygon-pulse {
+  0% {
+    fill-opacity: 0.5;
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+  }
+  50% {
+    fill-opacity: 0.2;
+    stroke-opacity: 0.5;
+    filter: drop-shadow(0 0 16px rgba(239, 68, 68, 1));
+  }
+  100% {
+    fill-opacity: 0.5;
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
   }
 }
 
+.leaflet-interactive.alert-polygon-double {
+  animation: polygon-pulse 1.2s ease-in-out infinite;
+}
+
+/* ─── Dark base ─── */
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: #030712;
+  color: #ffffff;
   font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Override Leaflet popup for glassmorphism ─── */
+.leaflet-popup-content-wrapper {
+  background: rgba(17, 24, 39, 0.8) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  color: white !important;
+  direction: rtl;
+}
+
+.leaflet-popup-content {
+  margin: 10px 14px !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(17, 24, 39, 0.8) !important;
+}
+
+.leaflet-popup-close-button {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: white !important;
+}
+
+/* ─── Hide default Leaflet attribution for cleaner look ─── */
+.leaflet-control-attribution {
+  display: none !important;
+}
+
+/* ─── Scrollbar styling ─── */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+}
+
+/* ─── Alert tooltip styling ─── */
+.alert-tooltip {
+  background: rgba(17, 24, 39, 0.85) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 0.5rem !important;
+  color: white !important;
+  font-size: 0.8rem !important;
+  padding: 4px 10px !important;
+  direction: rtl;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.alert-tooltip::before {
+  display: none !important;
+}
+
+.hide-labels .alert-tooltip {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/* ─── Intel panel slide transition ─── */
+.intel-panel {
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
