@@ -12,8 +12,10 @@ import { ActiveAlert } from "@/types";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
-const TILE_URL =
-  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+const THEMES = {
+  dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png",
+  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+};
 
 function ZoomListener() {
   const map = useMapEvents({
@@ -91,16 +93,16 @@ function getPolygonStyle(alert: ActiveAlert) {
   return {
     color:
       s === "telegram_yellow" ? "#eab308" :
-        s === "after_alert" ? "#6b7280" : "red",
+        s === "after_alert" ? "#94a3b8" : "#ef4444",
     weight: s === "pre_alert" ? 3 : 2,
     fillColor:
       s === "telegram_yellow" ? "#fef08a" :
-        s === "after_alert" ? "#9ca3af" : "red",
+        s === "after_alert" ? "#cbd5e1" : "#ef4444",
     fillOpacity:
       s === "pre_alert" ? 0.0 :
         s === "telegram_yellow" ? 0.4 :
-          s === "after_alert" ? 0.3 :
-            alert.is_double ? 0.5 : 0.4,
+          s === "after_alert" ? 0.2 :
+            alert.is_double ? 0.6 : 0.5,
     className: alert.is_double && s === "alert" ? "alert-polygon-double" : "",
     dashArray: s === "pre_alert" ? "5, 5" : undefined,
   };
@@ -110,6 +112,7 @@ export default function MapView() {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = useCallback(() => {
@@ -130,11 +133,13 @@ export default function MapView() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative h-screen w-screen bg-gray-950">
+    <div ref={containerRef} className={`relative h-screen w-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
       <IntelPanel
         alerts={alerts}
         onToggleFullscreen={toggleFullscreen}
         isFullscreen={isFullscreen}
+        theme={theme}
+        onThemeChange={setTheme}
       />
       <MapContainer
         center={ISRAEL_CENTER}
@@ -144,7 +149,7 @@ export default function MapView() {
         className="hide-labels"
       >
         <ZoomListener />
-        <TileLayer url={TILE_URL} />
+        <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
         {polygons && (
           <AlertFitter alerts={alerts} polygons={polygons} />
         )}
