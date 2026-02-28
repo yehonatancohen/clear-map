@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Polygon, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
 import { useFirebaseAlerts } from "@/hooks/useFirebaseAlerts";
 import { usePolygons } from "@/hooks/usePolygons";
-import IntelBanner from "./IntelBanner";
+import IntelPanel from "./IntelBanner";
 import { ActiveAlert } from "@/types";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
@@ -39,10 +39,22 @@ function AlertFitter({
 }) {
   const map = useMap();
   const prevCountRef = useRef(0);
+  const prevIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    // Only auto-fit when alert count INCREASES (new alerts came in)
-    if (alerts.length <= prevCountRef.current || alerts.length === 0) {
+    if (alerts.length === 0) {
+      prevCountRef.current = 0;
+      prevIdsRef.current = new Set();
+      return;
+    }
+
+    // Check if there are genuinely NEW alerts (not just state changes)
+    const currentIds = new Set(alerts.map((a) => a.city_name_he));
+    const hasNew = alerts.some((a) => !prevIdsRef.current.has(a.city_name_he));
+
+    prevIdsRef.current = currentIds;
+
+    if (!hasNew && prevCountRef.current > 0) {
       prevCountRef.current = alerts.length;
       return;
     }
@@ -52,7 +64,7 @@ function AlertFitter({
     const allCoords: [number, number][] = [];
     for (const alert of alerts) {
       const poly = polygons[alert.city_name_he];
-      if (poly && Array.isArray(poly.polygon)) {
+      if (poly?.polygon && Array.isArray(poly.polygon)) {
         allCoords.push(...poly.polygon);
       }
     }
@@ -64,7 +76,7 @@ function AlertFitter({
     );
 
     map.fitBounds(bounds, {
-      padding: [50, 50],
+      padding: [60, 60],
       maxZoom: 12,
       animate: true,
       duration: 0.8,
@@ -97,10 +109,33 @@ function getPolygonStyle(alert: ActiveAlert) {
 export default function MapView() {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.();
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  // Sync fullscreen state with actual browser state
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
 
   return (
-    <div className="relative h-screen w-screen">
-      <IntelBanner updates={[]} />
+    <div ref={containerRef} className="relative h-screen w-screen bg-gray-950">
+      <IntelPanel
+        alerts={alerts}
+        onToggleFullscreen={toggleFullscreen}
+        isFullscreen={isFullscreen}
+      />
       <MapContainer
         center={ISRAEL_CENTER}
         zoom={DEFAULT_ZOOM}
