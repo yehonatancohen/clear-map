@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
 /* ─── Polygon pulse animation for double/salvo alerts ─── */
 @keyframes polygon-pulse {
@@ -7,11 +8,13 @@
     stroke-opacity: 1;
     filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
   }
+
   50% {
     fill-opacity: 0.2;
     stroke-opacity: 0.5;
     filter: drop-shadow(0 0 16px rgba(239, 68, 68, 1));
   }
+
   100% {
     fill-opacity: 0.5;
     stroke-opacity: 1;
@@ -27,9 +30,33 @@
 body {
   background: #030712;
   color: #ffffff;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Liquid Glass (iOS-inspired) ─── */
+.liquid-glass {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.03) 50%,
+      rgba(255, 255, 255, 0.06) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+
+.liquid-glass-subtle {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ─── Override Leaflet popup for glassmorphism ─── */
@@ -46,6 +73,7 @@ body {
 
 .leaflet-popup-content {
   margin: 10px 14px !important;
+  font-family: 'Rubik', sans-serif !important;
 }
 
 .leaflet-popup-tip {
@@ -67,13 +95,15 @@ body {
 
 /* ─── Scrollbar styling ─── */
 .scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
 }
+
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
 }
 
@@ -101,7 +131,69 @@ body {
   pointer-events: none;
 }
 
-/* ─── Intel panel slide transition ─── */
+/* ─── Glass panel transitions ─── */
 .intel-panel {
-  transition: transform 0.3s ease, opacity 0.3s ease;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Status dot animations ─── */
+@keyframes status-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.status-dot-pulse {
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+/* ─── Fullscreen ─── */
+.fullscreen-active .glass-overlay {
+  display: none !important;
+}
+
+/* ─── Alert item entrance ─── */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.alert-item-enter {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* ─── About panel ─── */
+.about-shimmer {
+  background: linear-gradient(110deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.04) 40%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.04) 60%,
+      rgba(255, 255, 255, 0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
