@@ -93,11 +93,13 @@ function getPolygonStyle(alert: ActiveAlert) {
   return {
     color:
       s === "telegram_yellow" ? "#eab308" :
-        s === "after_alert" ? "#94a3b8" : "#ef4444",
+        s === "after_alert" ? "#94a3b8" :
+        s === "pre_alert" ? "#f97316" : "#ef4444",
     weight: s === "pre_alert" ? 3 : 2,
     fillColor:
       s === "telegram_yellow" ? "#fef08a" :
-        s === "after_alert" ? "#cbd5e1" : "#ef4444",
+        s === "after_alert" ? "#cbd5e1" :
+        s === "pre_alert" ? "#f97316" : "#ef4444",
     fillOpacity:
       s === "pre_alert" ? 0.0 :
         s === "telegram_yellow" ? 0.4 :

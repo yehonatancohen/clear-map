@@ -31,7 +31,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
     bg: "border-red-400/20",
   },
   after_alert: {
-    label: "מוגנות",
+    label: "להישאר בממ\"ד",
     color: "text-gray-400",
     dot: "bg-gray-400",
     bg: "border-gray-400/20",
@@ -157,7 +157,7 @@ export default function IntelPanel({
           <p className="text-[11px] text-white/50 leading-relaxed mb-3">
             מערכת מודיעין ויזואלית בזמן אמת.
             <br />
-            מציגה התרעות פיקוד העורף, מודיעין טלגרם ומצב מוגנות.
+            מציגה התרעות פיקוד העורף, מודיעין טלגרם ומצב ממ"ד.
           </p>
           <div className="flex items-center gap-3 text-[10px] text-white/30 mb-4">
             <div className="flex items-center gap-1">
@@ -241,7 +241,7 @@ export default function IntelPanel({
             {counts.after_alert && (
               <div className="flex items-center gap-1 text-[11px] font-bold text-gray-300">
                 <span className="h-2 w-2 rounded-full bg-gray-400" />
-                {counts.after_alert} מוגנות
+                {counts.after_alert} להישאר בממ"ד
               </div>
             )}
             {counts.telegram_yellow && (
@@ -282,7 +282,7 @@ export default function IntelPanel({
           {counts.after_alert && (
             <div className="flex items-center gap-1.5 text-[12px] font-bold text-gray-300">
               <span className="h-2.5 w-2.5 rounded-full bg-gray-400" />
-              {counts.after_alert} מוגנות
+              {counts.after_alert} להישאר בממ"ד
             </div>
           )}
           {counts.telegram_yellow && (

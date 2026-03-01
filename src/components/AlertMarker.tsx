@@ -15,10 +15,12 @@ export function AlertMarker({ alert, polygon }: AlertMarkerProps) {
       positions={polygon}
       pathOptions={{
         color: alert.status === "telegram_yellow" ? "#eab308" :
-          alert.status === "after_alert" ? "#6b7280" : "red",
+          alert.status === "after_alert" ? "#6b7280" :
+          alert.status === "pre_alert" ? "#f97316" : "red",
         weight: alert.status === "pre_alert" ? 3 : 2,
         fillColor: alert.status === "telegram_yellow" ? "#fef08a" :
-          alert.status === "after_alert" ? "#9ca3af" : "red",
+          alert.status === "after_alert" ? "#9ca3af" :
+          alert.status === "pre_alert" ? "#f97316" : "red",
         fillOpacity: alert.status === "pre_alert" ? 0.0 :
           alert.status === "telegram_yellow" ? 0.4 :
             alert.status === "after_alert" ? 0.3 :
