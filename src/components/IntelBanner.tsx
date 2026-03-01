@@ -159,6 +159,9 @@ export default function IntelPanel({
             <br />
             מציגה התרעות פיקוד העורף, מודיעין טלגרם ומצב ממ"ד.
           </p>
+          <p className="text-[10px] text-red-400/70 leading-relaxed mb-3">
+            המערכת אינה מהווה תחליף לפיקוד העורף. אין להסתמך עליה לצורך הצלת חיים. השימוש באחריות המשתמש בלבד.
+          </p>
           <div className="flex items-center gap-3 text-[10px] text-white/30 mb-4">
             <div className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
