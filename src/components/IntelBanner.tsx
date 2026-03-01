@@ -30,6 +30,18 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
     dot: "bg-red-400",
     bg: "border-red-400/20",
   },
+  uav: {
+    label: "כטב\"ם",
+    color: "text-purple-400",
+    dot: "bg-purple-400",
+    bg: "border-purple-400/20",
+  },
+  terrorist: {
+    label: "חדירת מחבלים",
+    color: "text-red-800",
+    dot: "bg-red-800",
+    bg: "border-red-800/20",
+  },
   after_alert: {
     label: "להישאר בממ\"ד",
     color: "text-gray-400",
@@ -235,6 +247,18 @@ export default function IntelPanel({
                 {counts.alert} התרעות
               </div>
             )}
+            {counts.uav && (
+              <div className="flex items-center gap-1 text-[11px] font-bold text-purple-400">
+                <span className="h-2 w-2 rounded-full bg-purple-400 status-dot-pulse" />
+                {counts.uav} כטב&quot;ם
+              </div>
+            )}
+            {counts.terrorist && (
+              <div className="flex items-center gap-1 text-[11px] font-bold text-red-800">
+                <span className="h-2 w-2 rounded-full bg-red-800 status-dot-pulse" />
+                {counts.terrorist} חדירת מחבלים
+              </div>
+            )}
             {counts.pre_alert && (
               <div className="flex items-center gap-1 text-[11px] font-bold text-orange-400">
                 <span className="h-2 w-2 rounded-full bg-orange-400" />
@@ -274,6 +298,18 @@ export default function IntelPanel({
             <div className="flex items-center gap-1.5 text-[12px] font-bold text-red-400">
               <span className="h-2.5 w-2.5 rounded-full bg-red-400 status-dot-pulse" />
               {counts.alert} התרעות פעילות
+            </div>
+          )}
+          {counts.uav && (
+            <div className="flex items-center gap-1.5 text-[12px] font-bold text-purple-400">
+              <span className="h-2.5 w-2.5 rounded-full bg-purple-400 status-dot-pulse" />
+              {counts.uav} כטב&quot;ם
+            </div>
+          )}
+          {counts.terrorist && (
+            <div className="flex items-center gap-1.5 text-[12px] font-bold text-red-800">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-800 status-dot-pulse" />
+              {counts.terrorist} חדירת מחבלים
             </div>
           )}
           {counts.pre_alert && (

@@ -91,16 +91,26 @@ function AlertFitter({
 
 function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
   const s = mp.status || "alert";
+  const colorMap: Record<string, string> = {
+    telegram_yellow: "#eab308",
+    after_alert: "#94a3b8",
+    pre_alert: "#f97316",
+    uav: "#a855f7",
+    terrorist: "#991b1b",
+    alert: "#ef4444",
+  };
+  const fillMap: Record<string, string> = {
+    telegram_yellow: "#fef08a",
+    after_alert: "#cbd5e1",
+    pre_alert: "#f97316",
+    uav: "#c084fc",
+    terrorist: "#b91c1c",
+    alert: "#ef4444",
+  };
   return {
-    color:
-      s === "telegram_yellow" ? "#eab308" :
-        s === "after_alert" ? "#94a3b8" :
-        s === "pre_alert" ? "#f97316" : "#ef4444",
+    color: colorMap[s] || "#ef4444",
     weight: s === "pre_alert" ? 3 : 2,
-    fillColor:
-      s === "telegram_yellow" ? "#fef08a" :
-        s === "after_alert" ? "#cbd5e1" :
-        s === "pre_alert" ? "#f97316" : "#ef4444",
+    fillColor: fillMap[s] || "#ef4444",
     fillOpacity:
       s === "pre_alert" ? 0.0 :
         s === "telegram_yellow" ? 0.4 :
@@ -130,7 +140,7 @@ export default function MapView() {
     const justAppeared = new Set<string>();
 
     for (const a of alerts) {
-      if (a.status === "alert" && !prevAlertIdsRef.current.has(a.id)) {
+      if (["alert", "uav", "terrorist"].includes(a.status) && !prevAlertIdsRef.current.has(a.id)) {
         justAppeared.add(a.id);
       }
     }
