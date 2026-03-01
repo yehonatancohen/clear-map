@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@turf/helpers": "^7.3.4",
+    "@turf/union": "^7.3.4",
     "@vercel/analytics": "^1.6.1",
     "firebase": "^12.10.0",
     "leaflet": "^1.9.4",

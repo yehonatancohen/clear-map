@@ -7,6 +7,7 @@ import L from "leaflet";
 
 import { useFirebaseAlerts } from "@/hooks/useFirebaseAlerts";
 import { usePolygons } from "@/hooks/usePolygons";
+import { useMergedPolygons, MergedPolygon } from "@/hooks/useMergedPolygons";
 import IntelPanel from "./IntelBanner";
 import { ActiveAlert } from "@/types";
 
@@ -88,8 +89,8 @@ function AlertFitter({
   return null;
 }
 
-function getPolygonStyle(alert: ActiveAlert) {
-  const s = alert.status || "alert";
+function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
+  const s = mp.status || "alert";
   return {
     color:
       s === "telegram_yellow" ? "#eab308" :
@@ -104,8 +105,10 @@ function getPolygonStyle(alert: ActiveAlert) {
       s === "pre_alert" ? 0.0 :
         s === "telegram_yellow" ? 0.4 :
           s === "after_alert" ? 0.2 :
-            alert.is_double ? 0.6 : 0.5,
-    className: alert.is_double && s === "alert" ? "alert-polygon-double" : "",
+            mp.is_double ? 0.6 : 0.5,
+    className:
+      isNew ? "alert-polygon-new" :
+      mp.is_double && s === "alert" ? "alert-polygon-double" : "",
     dashArray: s === "pre_alert" ? "5, 5" : undefined,
   };
 }
@@ -113,9 +116,39 @@ function getPolygonStyle(alert: ActiveAlert) {
 export default function MapView() {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
+  const mergedPolygons = useMergedPolygons(alerts, polygons);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Track newly appeared alerts for blink animation
+  const [newAlertIds, setNewAlertIds] = useState<Set<string>>(new Set());
+  const prevAlertIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const currentIds = new Set(alerts.map((a) => a.id));
+    const justAppeared = new Set<string>();
+
+    for (const a of alerts) {
+      if (a.status === "alert" && !prevAlertIdsRef.current.has(a.id)) {
+        justAppeared.add(a.id);
+      }
+    }
+
+    prevAlertIdsRef.current = currentIds;
+
+    if (justAppeared.size > 0) {
+      setNewAlertIds((prev) => new Set([...prev, ...justAppeared]));
+      const timer = setTimeout(() => {
+        setNewAlertIds((prev) => {
+          const next = new Set(prev);
+          for (const id of justAppeared) next.delete(id);
+          return next;
+        });
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [alerts]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -155,19 +188,18 @@ export default function MapView() {
         {polygons && (
           <AlertFitter alerts={alerts} polygons={polygons} />
         )}
-        {polygons && Array.isArray(alerts) &&
-          alerts.map((alert: ActiveAlert) => {
-            if (!alert?.id || !alert?.city_name_he) return null;
-            const poly = polygons[alert.city_name_he];
-            if (!poly?.polygon || !Array.isArray(poly.polygon) || poly.polygon.length === 0) return null;
-            return (
-              <Polygon
-                key={alert.id}
-                positions={poly.polygon}
-                pathOptions={getPolygonStyle(alert)}
-              />
-            );
-          })}
+        {mergedPolygons.map((mp) => {
+          const hasNewCity = mp.city_names_he.some((name) =>
+            newAlertIds.has(`alert_${name}`),
+          );
+          return mp.positions.map((positions, idx) => (
+            <Polygon
+              key={`${mp.id}_${idx}`}
+              positions={positions}
+              pathOptions={getMergedPolygonStyle(mp, hasNewCity)}
+            />
+          ));
+        })}
       </MapContainer>
     </div>
   );
