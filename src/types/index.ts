@@ -7,6 +7,15 @@ export interface ActiveAlert {
   status: string;
 }
 
+export interface UavTrack {
+  track_id: string;
+  observed: [number, number][];
+  predicted: [number, number][];
+  heading_deg: number;
+  speed_kmh: number;
+  last_updated: number;
+}
+
 export interface IntelligenceUpdate {
   id: string;
   text: string;

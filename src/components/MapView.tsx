@@ -9,6 +9,8 @@ import { useFirebaseAlerts } from "@/hooks/useFirebaseAlerts";
 import { usePolygons } from "@/hooks/usePolygons";
 import { useMergedPolygons, MergedPolygon } from "@/hooks/useMergedPolygons";
 import IntelPanel from "./IntelBanner";
+import UavFlightPath from "./UavFlightPath";
+import { useUavTracks } from "@/hooks/useUavTracks";
 import { ActiveAlert } from "@/types";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
@@ -127,6 +129,7 @@ export default function MapView() {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
   const mergedPolygons = useMergedPolygons(alerts, polygons);
+  const uavTracks = useUavTracks();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -210,6 +213,7 @@ export default function MapView() {
             />
           ));
         })}
+        <UavFlightPath tracks={uavTracks} />
       </MapContainer>
     </div>
   );
