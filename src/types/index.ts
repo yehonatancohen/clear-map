@@ -16,6 +16,17 @@ export interface UavTrack {
   last_updated: number;
 }
 
+export interface OrefHistoryAlert {
+  data: string;
+  date: string;
+  time: string;
+  alertDate: string;
+  category: number;
+  category_desc: string;
+  matrix_id: number;
+  rid: number;
+}
+
 export interface IntelligenceUpdate {
   id: string;
   text: string;
