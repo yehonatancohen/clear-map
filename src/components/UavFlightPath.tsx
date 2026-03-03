@@ -5,18 +5,44 @@ import L from "leaflet";
 import { UavTrack } from "@/types";
 import { useEffect, useState } from "react";
 
-const OBSERVED_STYLE = {
-  color: "#a855f7",
-  weight: 3,
-  opacity: 0.8,
-};
+const COLOR_PALETTES = [
+  { main: "#0ea5e9", light: "#bae6fd", bg: "#7dd3fc" }, // Cyan
+  { main: "#84cc16", light: "#d9f99d", bg: "#bef264" }, // Lime
+  { main: "#f97316", light: "#ffedd5", bg: "#fdba74" }, // Orange
+  { main: "#ec4899", light: "#fbcfe8", bg: "#f9a8d4" }, // Pink
+  { main: "#eab308", light: "#fef08a", bg: "#fde047" }, // Yellow
+  { main: "#14b8a6", light: "#ccfbf1", bg: "#5eead4" }, // Teal
+];
 
-const PREDICTED_STYLE = {
-  color: "#c084fc",
-  weight: 2,
-  opacity: 0.5,
-  dashArray: "8, 8",
-};
+function getPaletteKey(trackId: string) {
+  // Extract number from uav_0, uav_1 etc, fallback to hash
+  const match = trackId.match(/\d+/);
+  if (match) {
+    return parseInt(match[0], 10) % COLOR_PALETTES.length;
+  }
+  let hash = 0;
+  for (let i = 0; i < trackId.length; i++) {
+    hash = trackId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash) % COLOR_PALETTES.length;
+}
+
+function getObservedStyle(color: string) {
+  return {
+    color: color,
+    weight: 3,
+    opacity: 0.8,
+  };
+}
+
+function getPredictedStyle(color: string, dashColor: string) {
+  return {
+    color: dashColor,
+    weight: 2,
+    opacity: 0.5,
+    dashArray: "8, 8",
+  };
+}
 
 // Inject global CSS for drone animations (once)
 const STYLE_ID = "uav-drone-styles";
@@ -47,7 +73,7 @@ function ensureStyles() {
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       animation: drone-pulse 1.5s ease-in-out infinite;
-      filter: drop-shadow(0 0 6px rgba(168,85,247,0.8));
+      filter: drop-shadow(0 0 6px var(--uav-main));
       z-index: 2;
     }
     .uav-radar-ring {
@@ -55,7 +81,7 @@ function ensureStyles() {
       top: 50%; left: 50%;
       width: 14px; height: 14px;
       margin-left: -7px; margin-top: -7px;
-      border: 2px solid rgba(168,85,247,0.5);
+      border: 2px solid var(--uav-ring);
       border-radius: 50%;
       animation: radar-sweep 2s ease-out infinite;
       z-index: 1;
@@ -65,7 +91,7 @@ function ensureStyles() {
     }
     .uav-ghost {
       animation: ghost-drift 2s ease-in-out infinite;
-      filter: drop-shadow(0 0 3px rgba(192,132,252,0.5));
+      filter: drop-shadow(0 0 3px var(--uav-ghost-glow));
     }
   `;
   document.head.appendChild(style);
@@ -73,27 +99,27 @@ function ensureStyles() {
 
 const DRONE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="28" height="28">
   <!-- Rotor arms -->
-  <line x1="7" y1="7" x2="29" y2="29" stroke="#c084fc" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="29" y1="7" x2="7" y2="29" stroke="#c084fc" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="7" y1="7" x2="29" y2="29" stroke="var(--uav-bg)" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="29" y1="7" x2="7" y2="29" stroke="var(--uav-bg)" stroke-width="1.5" stroke-linecap="round"/>
   <!-- Rotors -->
-  <circle cx="7" cy="7" r="5" fill="none" stroke="#a855f7" stroke-width="1.2" opacity="0.6"/>
-  <circle cx="29" cy="7" r="5" fill="none" stroke="#a855f7" stroke-width="1.2" opacity="0.6"/>
-  <circle cx="7" cy="29" r="5" fill="none" stroke="#a855f7" stroke-width="1.2" opacity="0.6"/>
-  <circle cx="29" cy="29" r="5" fill="none" stroke="#a855f7" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="7" cy="7" r="5" fill="none" stroke="var(--uav-main)" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="29" cy="7" r="5" fill="none" stroke="var(--uav-main)" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="7" cy="29" r="5" fill="none" stroke="var(--uav-main)" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="29" cy="29" r="5" fill="none" stroke="var(--uav-main)" stroke-width="1.2" opacity="0.6"/>
   <!-- Body -->
-  <circle cx="18" cy="18" r="5" fill="#a855f7"/>
-  <circle cx="18" cy="18" r="2.5" fill="#e9d5ff"/>
+  <circle cx="18" cy="18" r="5" fill="var(--uav-main)"/>
+  <circle cx="18" cy="18" r="2.5" fill="var(--uav-light)"/>
   <!-- Direction notch (forward = up) -->
-  <circle cx="18" cy="11" r="1.5" fill="#e9d5ff"/>
+  <circle cx="18" cy="11" r="1.5" fill="var(--uav-light)"/>
 </svg>`;
 
-function droneIcon(headingDeg: number) {
+function droneIcon(headingDeg: number, paletteMap: { main: string; light: string; bg: string }) {
   ensureStyles();
   return L.divIcon({
     className: "",
     iconSize: [36, 36],
     iconAnchor: [18, 18],
-    html: `<div class="uav-drone-wrap">
+    html: `<div class="uav-drone-wrap" style="--uav-main: ${paletteMap.main}; --uav-light: ${paletteMap.light}; --uav-bg: ${paletteMap.bg}; --uav-ring: ${paletteMap.main}80;">
       <div class="uav-radar-ring"></div>
       <div class="uav-radar-ring"></div>
       <div class="uav-drone-icon" style="transform: translate(-50%, -50%) rotate(${headingDeg}deg);">
@@ -103,15 +129,14 @@ function droneIcon(headingDeg: number) {
   });
 }
 
-function ghostDroneIcon(headingDeg: number, opacity: number) {
+function ghostDroneIcon(headingDeg: number, opacity: number, paletteMap: { main: string; light: string; bg: string }) {
   ensureStyles();
-  const svg = DRONE_SVG.replace(/#a855f7/g, "#c084fc").replace(/#e9d5ff/g, "#ddd6fe");
   return L.divIcon({
     className: "",
     iconSize: [28, 28],
     iconAnchor: [14, 14],
-    html: `<div class="uav-ghost" style="opacity:${opacity}; transform: rotate(${headingDeg}deg);">
-      ${svg}
+    html: `<div class="uav-ghost" style="opacity:${opacity}; transform: rotate(${headingDeg}deg); --uav-main: ${paletteMap.bg}; --uav-light: ${paletteMap.light}; --uav-bg: ${paletteMap.light}; --uav-ghost-glow: ${paletteMap.bg}80;">
+      ${DRONE_SVG}
     </div>`,
   });
 }
@@ -151,12 +176,14 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
         const hasPrediction = track.predicted.length > 0;
         const lastObserved = track.observed[track.observed.length - 1];
         const ghostIdx = ghostPositions.get(track.track_id) ?? 0;
+        
+        const palette = COLOR_PALETTES[getPaletteKey(track.track_id)];
 
         return (
           <span key={track.track_id}>
             {/* Observed path */}
             {hasPath && (
-              <Polyline positions={track.observed} pathOptions={OBSERVED_STYLE} />
+              <Polyline positions={track.observed} pathOptions={getObservedStyle(palette.main)} />
             )}
 
             {/* Observed point markers */}
@@ -166,8 +193,8 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
                 center={pos}
                 radius={3}
                 pathOptions={{
-                  color: "#a855f7",
-                  fillColor: "#c084fc",
+                  color: palette.main,
+                  fillColor: palette.bg,
                   fillOpacity: 1,
                   weight: 1,
                 }}
@@ -178,7 +205,7 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
             {hasPrediction && lastObserved && (
               <Polyline
                 positions={[lastObserved, ...track.predicted]}
-                pathOptions={PREDICTED_STYLE}
+                pathOptions={getPredictedStyle(palette.main, palette.bg)}
               />
             )}
 
@@ -186,7 +213,7 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
             {lastObserved && (
               <Marker
                 position={lastObserved}
-                icon={droneIcon(track.heading_deg)}
+                icon={droneIcon(track.heading_deg, palette)}
                 interactive={false}
                 zIndexOffset={1000}
               />
@@ -197,7 +224,7 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
               <Marker
                 key={`${track.track_id}_ghost_${ghostIdx}`}
                 position={track.predicted[ghostIdx]}
-                icon={ghostDroneIcon(track.heading_deg, 0.4)}
+                icon={ghostDroneIcon(track.heading_deg, 0.4, palette)}
                 interactive={false}
                 zIndexOffset={999}
               />
@@ -210,8 +237,8 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
                 center={pos}
                 radius={2}
                 pathOptions={{
-                  color: "#c084fc",
-                  fillColor: "#c084fc",
+                  color: palette.bg,
+                  fillColor: palette.bg,
                   fillOpacity: 0.3,
                   weight: 1,
                   opacity: 0.4,
