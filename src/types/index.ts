@@ -13,6 +13,7 @@ export interface UavTrack {
   predicted: [number, number][];
   heading_deg: number;
   speed_kmh: number;
+  origin_type?: string;
   last_updated: number;
 }
 

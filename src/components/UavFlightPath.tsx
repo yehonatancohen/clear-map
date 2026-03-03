@@ -1,6 +1,6 @@
 "use client";
 
-import { Polyline, CircleMarker, Marker } from "react-leaflet";
+import { Polyline, CircleMarker, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import { UavTrack } from "@/types";
 import { useEffect, useState } from "react";
@@ -176,7 +176,7 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
         const hasPrediction = track.predicted.length > 0;
         const lastObserved = track.observed[track.observed.length - 1];
         const ghostIdx = ghostPositions.get(track.track_id) ?? 0;
-        
+
         const palette = COLOR_PALETTES[getPaletteKey(track.track_id)];
 
         return (
@@ -214,9 +214,20 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
               <Marker
                 position={lastObserved}
                 icon={droneIcon(track.heading_deg, palette)}
-                interactive={false}
+                interactive={true}
                 zIndexOffset={1000}
-              />
+              >
+                <Popup className="uav-popup">
+                  <div className="flex flex-col gap-1 p-1 text-right" dir="rtl">
+                    <span className="font-bold text-[13px] text-purple-900 border-b border-purple-200 pb-1 mb-1">כלי טיס עוין במעקב</span>
+                    <span className="text-[11px] text-gray-700"><b>מהירות משוערת:</b> ~{track.speed_kmh} קמ"ש</span>
+                    {track.origin_type && (
+                      <span className="text-[11px] text-gray-700"><b>סיווג:</b> {track.origin_type}</span>
+                    )}
+                    <span className="text-[9px] text-gray-400 mt-1 italic leading-tight bg-gray-50 p-1.5 rounded-md">הנתונים מבוססים על הערכת מערכת. יש להיכנס למרחב המוגן מיד עם הישמע האזעקה.</span>
+                  </div>
+                </Popup>
+              </Marker>
             )}
 
             {/* Ghost drone stepping along predicted path */}

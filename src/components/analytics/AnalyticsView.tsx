@@ -104,17 +104,17 @@ function HorizontalBars({
   return (
     <div className="flex flex-col gap-2">
       {data.map((d) => (
-        <div key={d.label} className="flex items-center gap-3">
-          <span className="w-28 text-[12px] text-white/60 text-left truncate shrink-0">
+        <div key={d.label} className="flex items-center gap-2 sm:gap-3">
+          <span className="w-20 sm:w-28 text-[11px] sm:text-[12px] text-white/60 text-left truncate shrink-0">
             {d.label}
           </span>
-          <div className="flex-1 h-5 bg-white/5 rounded-lg overflow-hidden">
+          <div className="flex-1 h-4 sm:h-5 bg-white/5 rounded-lg overflow-hidden">
             <div
               className={`h-full rounded-lg transition-all duration-700 ${d.color ?? color}`}
               style={{ width: `${(d.value / max) * 100}%` }}
             />
           </div>
-          <span className="w-14 text-[12px] text-white/40 tabular-nums text-left shrink-0">
+          <span className="w-10 sm:w-14 text-[11px] sm:text-[12px] text-white/40 tabular-nums text-left shrink-0">
             {d.value.toLocaleString()}
           </span>
         </div>
@@ -147,9 +147,8 @@ function VerticalBars({
             {d.value > 0 ? d.value.toLocaleString() : ""}
           </span>
           <div
-            className={`w-full rounded-t-md transition-all duration-700 ${
-              highlightMax && i === maxIdx ? highlightColor : baseColor
-            }`}
+            className={`w-full rounded-t-md transition-all duration-700 ${highlightMax && i === maxIdx ? highlightColor : baseColor
+              }`}
             style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value > 0 ? 2 : 0 }}
           />
           <span className="text-[10px] text-white/40 leading-none truncate w-full text-center">{d.label}</span>
@@ -232,11 +231,10 @@ function RangePicker({
         <button
           key={opt.label}
           onClick={() => onChange(opt.days)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            selected === opt.days
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selected === opt.days
               ? "bg-red-500 text-white"
               : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70"
-          }`}
+            }`}
         >
           {opt.label}
         </button>
@@ -265,6 +263,8 @@ export default function AnalyticsView() {
   const categories = useMemo(() => categoryBreakdown(alerts), [alerts]);
   const peaks = useMemo(() => peakWindows(alerts, 5), [alerts]);
   const heatmap = useMemo(() => cityDayHeatmap(alerts, 8), [alerts]);
+
+  const isEmpty = !loading && !error && alerts.length === 0;
 
   if (loading) {
     return (
@@ -306,12 +306,12 @@ export default function AnalyticsView() {
         </div>
       </nav>
 
-      {/* ── Content ── */}
+      {/* ─── Content ── */}
       <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-6">
         {/* Hero + Range Picker */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold mb-1">סטטיסטיקות</h1>
+            <h1 className="text-2xl font-bold mb-1">סטטיסטיקות ומגמות</h1>
             <p className="text-sm text-white/40">
               {rangeLabel} · {alerts.length.toLocaleString()} התרעות
             </p>
@@ -319,92 +319,108 @@ export default function AnalyticsView() {
           <RangePicker selected={rangeDays} onChange={setRangeDays} />
         </div>
 
-        {/* Stats Grid */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="סה״כ התרעות" value={stats.total} />
-            <StatCard label="ישובים שהותרעו" value={stats.uniqueCities} />
-            <StatCard label="ממוצע ליום" value={stats.avgPerDay} />
-            <StatCard
-              label="היום העמוס ביותר"
-              value={stats.busiestDay.count.toLocaleString()}
-              sub={stats.busiestDay.date}
-            />
+        {isEmpty ? (
+          <div className="liquid-glass rounded-2xl p-8 flex flex-col items-center justify-center text-center gap-3 mt-4">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-white/20">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <h2 className="text-lg font-bold text-white/70">לא נמצאו התרעות</h2>
+            <p className="text-sm text-white/40 max-w-sm">
+              בטווח הזמן הנבחר לא נרשמו התרעות במערכת. נסו לבחור טווח זמן ארוך יותר.
+            </p>
           </div>
-        )}
-
-        {/* Daily Timeline */}
-        {daily.length > 0 && (
-          <Section title="התרעות לפי יום">
-            <div className="overflow-x-auto -mx-5 px-5">
-              <div style={{ minWidth: Math.max(daily.length * 48, 300) }}>
-                <VerticalBars
-                  data={daily.map((d) => ({ label: d.label, value: d.count }))}
-                  baseColor="bg-red-500/30"
-                  highlightColor="bg-red-400"
+        ) : (
+          <>
+            {/* Stats Grid */}
+            {stats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard label="סה״כ התרעות" value={stats.total} />
+                <StatCard label="ישובים שהותרעו" value={stats.uniqueCities} />
+                <StatCard label="ממוצע ליום" value={stats.avgPerDay} />
+                <StatCard
+                  label="היום העמוס ביותר"
+                  value={stats.busiestDay.count.toLocaleString()}
+                  sub={stats.busiestDay.date}
                 />
               </div>
-            </div>
-          </Section>
-        )}
+            )}
 
-        {/* Top Cities */}
-        <Section title="הישובים המותרעים ביותר">
-          <HorizontalBars
-            data={cities.map((c) => ({ label: c.city, value: c.count }))}
-          />
-        </Section>
-
-        {/* Hourly Distribution + Peak Windows */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Section title="התרעות לפי שעה ביממה" className="md:col-span-2">
-            <VerticalBars
-              data={hourly.map((count, i) => ({
-                label: `${i}`,
-                value: count,
-              }))}
-            />
-          </Section>
-
-          <Section title="שעות השיא">
-            <div className="flex flex-col gap-3">
-              {peaks.map((p, i) => (
-                <div key={p.label} className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-white/20 w-6">{i + 1}</span>
-                  <div className="flex-1">
-                    <p className="text-[13px] font-medium text-white/80">{p.label}</p>
-                    <p className="text-[11px] text-white/30">
-                      {p.count.toLocaleString()} התרעות
-                    </p>
+            {/* Daily Timeline */}
+            {daily.length > 0 && (
+              <Section title="התרעות לפי יום">
+                <div className="overflow-x-auto -mx-5 px-5">
+                  <div style={{ minWidth: Math.max(daily.length * 48, 300) }}>
+                    <VerticalBars
+                      data={daily.map((d) => ({ label: d.label, value: d.count }))}
+                      baseColor="bg-red-500/30"
+                      highlightColor="bg-red-400"
+                    />
                   </div>
                 </div>
-              ))}
+              </Section>
+            )}
+
+            {/* Top Cities */}
+            <Section title="הישובים המותרעים ביותר">
+              <HorizontalBars
+                data={cities.map((c) => ({ label: c.city, value: c.count }))}
+              />
+            </Section>
+
+            {/* Hourly Distribution + Peak Windows */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Section title="התרעות לפי שעה ביממה" className="md:col-span-2">
+                <VerticalBars
+                  data={hourly.map((count, i) => ({
+                    label: `${i}`,
+                    value: count,
+                  }))}
+                />
+              </Section>
+
+              <Section title="שעות השיא">
+                <div className="flex flex-col gap-3">
+                  {peaks.map((p, i) => (
+                    <div key={p.label} className="flex items-center gap-3">
+                      <span className="text-lg font-bold text-white/20 w-6">{i + 1}</span>
+                      <div className="flex-1">
+                        <p className="text-[13px] font-medium text-white/80">{p.label}</p>
+                        <p className="text-[11px] text-white/30">
+                          {p.count.toLocaleString()} התרעות
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Section>
             </div>
-          </Section>
-        </div>
 
-        {/* Category Breakdown */}
-        {categories.length > 0 && (
-          <Section title="סוגי התרעות">
-            <HorizontalBars
-              data={categories.map((c) => ({
-                label: c.desc,
-                value: c.count,
-                color: c.color,
-              }))}
-            />
-          </Section>
-        )}
+            {/* Category Breakdown */}
+            {categories.length > 0 && (
+              <Section title="סוגי התרעות">
+                <HorizontalBars
+                  data={categories.map((c) => ({
+                    label: c.desc,
+                    value: c.count,
+                    color: c.color,
+                  }))}
+                />
+              </Section>
+            )}
 
-        {/* City × Day Heatmap */}
-        {heatmap.days.length > 1 && heatmap.cities.length > 0 && (
-          <Section title="מפת חום — ישובים × ימים">
-            <Heatmap
-              cities={heatmap.cities}
-              days={heatmap.days}
-              grid={heatmap.grid}
-            />
-          </Section>
+            {/* City × Day Heatmap */}
+            {heatmap.days.length > 1 && heatmap.cities.length > 0 && (
+              <Section title="מפת חום — ישובים × ימים">
+                <Heatmap
+                  cities={heatmap.cities}
+                  days={heatmap.days}
+                  grid={heatmap.grid}
+                />
+              </Section>
+            )}
+          </>
         )}
 
         {/* Footer */}

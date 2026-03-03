@@ -1,10 +1,36 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  themeColor: "#030712",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "מפה שקופה | Clear Map",
   description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
+  keywords: ["צבע אדום", "מפה", "מודיעין", "התרעות", "פיקוד העורף", "כטבם", "טלגרם", "ישראל", "clear map"],
+  openGraph: {
+    title: "מפה שקופה | Clear Map",
+    description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
+    url: "https://clearmap.co.il",
+    siteName: "מפה שקופה",
+    locale: "he_IL",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "מפה שקופה | Clear Map",
+    description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
+  },
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

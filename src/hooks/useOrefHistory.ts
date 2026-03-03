@@ -25,43 +25,33 @@ function formatOrefDate(d: Date) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
-function generateMonthRanges(): { from: string; to: string }[] {
+function generateDayRanges(): { from: string; to: string }[] {
   const ranges: { from: string; to: string }[] = [];
   const now = new Date();
   let cursor = new Date(WAR_START);
 
+  // Set cursor to start of day
+  cursor.setHours(0, 0, 0, 0);
+
   while (cursor <= now) {
-    const year = cursor.getFullYear();
-    const month = cursor.getMonth();
+    const dayStr = formatOrefDate(cursor);
+    ranges.push({ from: dayStr, to: dayStr });
 
-    // Start of range: first day of month, or war start for the first month
-    const from =
-      ranges.length === 0
-        ? WAR_START
-        : new Date(year, month, 1);
-
-    // End of range: last day of month, or today for the current month
-    const endOfMonth = new Date(year, month + 1, 0);
-    const to = endOfMonth > now ? now : endOfMonth;
-
-    ranges.push({ from: formatOrefDate(from), to: formatOrefDate(to) });
-
-    // Move to next month
-    cursor = new Date(year, month + 1, 1);
+    // Move to next day
+    cursor.setDate(cursor.getDate() + 1);
   }
 
   return ranges;
 }
 
-async function fetchMonth(
-  from: string,
-  to: string,
+async function fetchDay(
+  date: string,
   signal: AbortSignal
 ): Promise<OrefHistoryAlert[]> {
   const params = new URLSearchParams({
     lang: "he",
-    fromDate: from,
-    toDate: to,
+    fromDate: date,
+    toDate: date,
     mode: "0",
   });
   const res = await fetch(`/api/oref-history?${params}`, { signal });
@@ -82,48 +72,54 @@ export function useOrefHistory(): FetchState {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (_cache) return; // Already cached
+    if (_cache) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
 
     (async () => {
-      const ranges = generateMonthRanges();
+      const ranges = generateDayRanges();
       setState((s) => ({ ...s, totalMonths: ranges.length }));
 
-      const all: OrefHistoryAlert[] = [];
+      const uniqueAlertsMap = new Map<string, OrefHistoryAlert>();
 
       for (let i = 0; i < ranges.length; i++) {
         if (controller.signal.aborted) return;
         try {
-          const chunk = await fetchMonth(
-            ranges[i].from,
-            ranges[i].to,
-            controller.signal
-          );
-          all.push(...chunk);
+          const chunk = await fetchDay(ranges[i].from, controller.signal);
+
+          // Deduplicate by rid or data+date+time
+          chunk.forEach(alert => {
+            const key = alert.rid ? String(alert.rid) : `${alert.data}-${alert.date}-${alert.time}`;
+            uniqueAlertsMap.set(key, alert);
+          });
+
+          const currentList = Array.from(uniqueAlertsMap.values());
+
           setState((s) => ({
             ...s,
-            alerts: [...all],
+            alerts: currentList,
             loadedMonths: i + 1,
             progress: Math.round(((i + 1) / ranges.length) * 100),
           }));
         } catch (err: unknown) {
           if (controller.signal.aborted) return;
-          // Skip failed months, continue fetching
+          console.error(`Failed to fetch for day ${ranges[i].from}:`, err);
           setState((s) => ({ ...s, loadedMonths: i + 1 }));
         }
 
-        // Small delay to avoid hammering the server
+        // Delay to avoid hammering (session initialization in proxy is heavy)
         if (i < ranges.length - 1) {
-          await new Promise((r) => setTimeout(r, 100));
+          await new Promise((r) => setTimeout(r, 200));
         }
       }
 
-      // Filter out clearance events (cat 13), pre-alerts (cat 14), and "event ended" alerts
+      // Final processing: filter out unwanted categories
+      const all = Array.from(uniqueAlertsMap.values());
       const filtered = all.filter(
         (a) => a.category !== 13 && a.category !== 14 && !a.category_desc?.includes("הסתיים")
       );
+
       _cache = filtered;
       setState((s) => ({
         ...s,

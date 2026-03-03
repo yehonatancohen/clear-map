@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ActiveAlert } from "@/types";
 
@@ -91,6 +91,36 @@ export default function IntelPanel({
 }: IntelPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [toasts, setToasts] = useState<(ActiveAlert & { toastId: number })[]>([]);
+  const prevAlertIdsRef = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
+  const toastIdCounter = useRef(0);
+
+  useEffect(() => {
+    const currentIds = new Set(alerts.map((a) => a.id));
+    const newAlerts: ActiveAlert[] = [];
+
+    for (const a of alerts) {
+      if (
+        ["alert", "uav", "terrorist"].includes(a.status) &&
+        !prevAlertIdsRef.current.has(a.id)
+      ) {
+        newAlerts.push(a);
+      }
+    }
+
+    prevAlertIdsRef.current = currentIds;
+
+    if (newAlerts.length > 0) {
+      const addedToasts = newAlerts.map(a => ({ ...a, toastId: ++toastIdCounter.current }));
+      setToasts(prev => [...prev, ...addedToasts].slice(-5));
+
+      addedToasts.forEach((t) => {
+        setTimeout(() => {
+          setToasts((prev) => prev.filter(p => p.toastId !== t.toastId));
+        }, 5000);
+      });
+    }
+  }, [alerts]);
 
   // Group alerts by status for the summary counts
   const counts = alerts.reduce(
@@ -114,13 +144,13 @@ export default function IntelPanel({
   return (
     <>
       {/* ─── Top bar: Logo + controls ─── */}
-      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2 glass-overlay" dir="rtl">
+      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 sm:gap-2 glass-overlay" dir="rtl">
         {/* Logo */}
         <button
           onClick={() => setShowAbout(!showAbout)}
-          className="liquid-glass rounded-2xl px-4 py-2.5 flex items-center gap-2.5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+          className="liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-2.5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
         >
-          <span className="text-[16px] font-bold text-white tracking-tight">מפה שקופה</span>
+          <span className="text-[14px] sm:text-[16px] font-bold text-white tracking-tight">מפה שקופה</span>
           {hasAlerts && (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
               {alerts.length}
@@ -132,7 +162,7 @@ export default function IntelPanel({
         {hasAlerts && (
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="liquid-glass rounded-2xl p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
+            className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
             title="עדכונים"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
@@ -144,7 +174,7 @@ export default function IntelPanel({
         {/* Analytics */}
         <Link href="/analytics">
           <button
-            className="liquid-glass rounded-2xl p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
+            className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
             title="סטטיסטיקות"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
@@ -160,7 +190,7 @@ export default function IntelPanel({
         {/* Fullscreen */}
         <button
           onClick={onToggleFullscreen}
-          className="liquid-glass rounded-2xl p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
+          className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
           title={isFullscreen ? "יציאה ממסך מלא" : "מסך מלא"}
         >
           {isFullscreen ? (
@@ -178,27 +208,40 @@ export default function IntelPanel({
       {/* ─── About mini-popup ─── */}
       {showAbout && (
         <div
-          className="absolute top-16 right-3 z-[1001] liquid-glass rounded-2xl p-5 w-64 glass-overlay"
+          className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-72 glass-overlay max-w-sm"
           dir="rtl"
         >
           <div className="about-shimmer absolute inset-0 rounded-2xl pointer-events-none" />
-          <h3 className="text-base font-bold text-white/90 mb-1.5">מפה שקופה</h3>
-          <p className="text-[11px] text-white/50 leading-relaxed mb-3">
-            מערכת מודיעין ויזואלית בזמן אמת.
-            <br />
-            מציגה התרעות פיקוד העורף, מודיעין טלגרם ומצב ממ"ד.
+          <h3 className="text-base font-bold text-white/90 mb-1.5 flex items-center gap-2">
+            מפה שקופה
+            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.0</span>
+          </h3>
+          <p className="text-[12px] text-white/80 leading-relaxed mb-4">
+            מערכת התרעות ומודיעין בזמן אמת. משלבת דיווחי פיקוד העורף ומודיעין קוד פתוח להצגת תמונת המצב המדויקת ביותר.
           </p>
-          <p className="text-[10px] text-red-400/70 leading-relaxed mb-3">
-            המערכת אינה מהווה תחליף לפיקוד העורף. אין להסתמך עליה לצורך הצלת חיים. השימוש באחריות המשתמש בלבד.
-          </p>
-          <div className="flex items-center gap-3 text-[10px] text-white/30 mb-4">
-            <div className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-              פעיל
+
+          <div className="flex flex-col gap-2 mb-4 p-3 bg-white/5 rounded-xl border border-white/10">
+            <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">מקרא מפה</span>
+            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" /> התרעת צבע אדום
             </div>
-            <span>v1.0</span>
+            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
+              <span className="h-2.5 w-2.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" /> כטב״ם / חדירת כלי טיס
+            </div>
+            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
+              <span className="h-2.5 w-2.5 rounded-full bg-orange-400" /> צפי להתרעה
+            </div>
+            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
+              <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" /> דיווח מודיעין (טלגרם)
+            </div>
+            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
+              <span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> להישאר בממ״ד תחת אזהרה
+            </div>
           </div>
 
+          <p className="text-[10.5px] text-red-300 leading-relaxed max-w-xs bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 mb-4 font-medium backdrop-blur-md">
+            המערכת אינה מהווה תחליף לאפליקציית פיקוד העורף. אין להסתמך עליה לצורך הצלת חיים. השימוש באחריות המשתמש בלבד.
+          </p>
           {/* Theme Toggle */}
           <div className="flex flex-col gap-2 border-t border-white/10 pt-4">
             <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider">ערכת נושא</span>
@@ -236,7 +279,7 @@ export default function IntelPanel({
       {/* ─── Sidebar panel ─── */}
       {isOpen && hasAlerts && (
         <div
-          className="intel-panel absolute top-16 bottom-4 right-3 z-[1000] flex w-72 flex-col liquid-glass rounded-2xl overflow-hidden glass-overlay"
+          className="intel-panel absolute top-14 sm:top-16 bottom-4 right-3 left-3 sm:left-auto z-[1000] flex sm:w-72 flex-col liquid-glass rounded-2xl overflow-hidden glass-overlay"
           dir="rtl"
         >
           {/* Header */}
@@ -305,45 +348,61 @@ export default function IntelPanel({
         </div>
       )}
 
+      {/* ─── Toast Notifications (New Alerts) ─── */}
+      <div className="absolute bottom-16 sm:bottom-20 right-3 left-3 flex flex-col items-center gap-2 pointer-events-none z-[1002]" dir="rtl">
+        {toasts.map((t) => {
+          const config = STATUS_CONFIG[t.status] || STATUS_CONFIG.alert;
+          return (
+            <div key={t.toastId} className={`toast-enter flex items-center gap-3 px-4 py-2.5 rounded-xl liquid-glass border ${config.bg} shadow-xl pointer-events-auto`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${config.dot} status-dot-pulse`} />
+              <div className="flex flex-col">
+                <span className={`font-bold text-[11px] ${config.color} leading-none mb-1 opacity-90`}>{config.label}</span>
+                <span className="font-bold text-[14px] text-white leading-none tracking-tight">{t.city_name_he}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* ─── Bottom status bar (when panel is closed and there are alerts) ─── */}
       {!isOpen && hasAlerts && (
         <div
-          className="absolute bottom-4 right-3 left-3 z-[1000] flex items-center justify-center gap-4 liquid-glass rounded-2xl px-4 py-2.5 glass-overlay"
+          className="absolute bottom-4 right-3 left-3 z-[1000] flex flex-wrap items-center justify-center gap-2 sm:gap-3 liquid-glass rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 glass-overlay"
           dir="rtl"
         >
           {counts.alert && (
-            <div className="flex items-center gap-1.5 text-[12px] font-bold text-red-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-400 status-dot-pulse" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-red-400">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-red-400 status-dot-pulse" />
               {counts.alert} התרעות פעילות
             </div>
           )}
           {counts.uav && (
-            <div className="flex items-center gap-1.5 text-[12px] font-bold text-purple-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-purple-400 status-dot-pulse" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-purple-400">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-purple-400 status-dot-pulse" />
               {counts.uav} כטב&quot;ם
             </div>
           )}
           {counts.terrorist && (
-            <div className="flex items-center gap-1.5 text-[12px] font-bold text-red-800">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-800 status-dot-pulse" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-red-800">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-red-800 status-dot-pulse" />
               {counts.terrorist} חדירת מחבלים
             </div>
           )}
           {counts.pre_alert && (
-            <div className="flex items-center gap-1.5 text-[12px] font-bold text-orange-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-orange-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-orange-400">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-orange-400" />
               {counts.pre_alert} צפי התרעה
             </div>
           )}
           {counts.after_alert && (
-            <div className="flex items-center gap-1.5 text-[12px] font-bold text-gray-300">
-              <span className="h-2.5 w-2.5 rounded-full bg-gray-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-gray-300">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-gray-400" />
               {counts.after_alert} להישאר בממ"ד
             </div>
           )}
           {counts.telegram_yellow && (
-            <div className="flex items-center gap-1.5 text-[12px] font-bold text-yellow-400">
-              <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-yellow-400">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-400" />
               {counts.telegram_yellow} מודיעין
             </div>
           )}
