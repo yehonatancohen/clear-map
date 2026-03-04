@@ -11,7 +11,7 @@ import { useMergedPolygons, MergedPolygon } from "@/hooks/useMergedPolygons";
 import IntelPanel from "./IntelBanner";
 import UavFlightPath from "./UavFlightPath";
 import { useUavTracks } from "@/hooks/useUavTracks";
-import { ActiveAlert } from "@/types";
+import { ActiveAlert, UavTrack } from "@/types";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
@@ -34,36 +34,45 @@ function ZoomListener() {
   return null;
 }
 
-/** Automatically fit bounds when NEW alerts appear. */
 function AlertFitter({
   alerts,
   polygons,
+  uavTracks,
 }: {
   alerts: ActiveAlert[];
   polygons: Record<string, { polygon: [number, number][] }>;
+  uavTracks: UavTrack[];
 }) {
   const map = useMap();
   const prevCountRef = useRef(0);
   const prevIdsRef = useRef<Set<string>>(new Set());
+  const prevTrackIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (alerts.length === 0) {
+    if (alerts.length === 0 && uavTracks.length === 0) {
       prevCountRef.current = 0;
       prevIdsRef.current = new Set();
+      prevTrackIdsRef.current = new Set();
       return;
     }
 
-    // Check if there are genuinely NEW alerts (not just state changes)
     const currentIds = new Set(alerts.map((a) => a.city_name_he));
-    const hasNew = alerts.some((a) => !prevIdsRef.current.has(a.city_name_he));
+    const currentTrackIds = new Set(uavTracks.map((t) => t.track_id));
+
+    // Check if there are genuinely NEW alerts or tracks
+    const hasNewAlert = alerts.some((a) => !prevIdsRef.current.has(a.city_name_he));
+    const hasNewTrack = uavTracks.some((t) => !prevTrackIdsRef.current.has(t.track_id));
 
     prevIdsRef.current = currentIds;
+    prevTrackIdsRef.current = currentTrackIds;
 
-    if (!hasNew && prevCountRef.current > 0) {
-      prevCountRef.current = alerts.length;
+    const totalCount = alerts.length + uavTracks.length;
+
+    if (!hasNewAlert && !hasNewTrack && prevCountRef.current > 0) {
+      prevCountRef.current = totalCount;
       return;
     }
-    prevCountRef.current = alerts.length;
+    prevCountRef.current = totalCount;
 
     // Collect all coordinates from all alerted polygons
     const allCoords: [number, number][] = [];
@@ -71,6 +80,16 @@ function AlertFitter({
       const poly = polygons[alert.city_name_he];
       if (poly?.polygon && Array.isArray(poly.polygon)) {
         allCoords.push(...poly.polygon);
+      }
+    }
+
+    // Collect all coordinates from UAV current locations and predictions
+    for (const track of uavTracks) {
+      if (track.observed && track.observed.length > 0) {
+        allCoords.push(track.observed[track.observed.length - 1]);
+      }
+      if (track.predicted && track.predicted.length > 0) {
+        allCoords.push(...track.predicted);
       }
     }
 
@@ -86,7 +105,7 @@ function AlertFitter({
       animate: true,
       duration: 0.8,
     });
-  }, [alerts, polygons, map]);
+  }, [alerts, polygons, uavTracks, map]);
 
   return null;
 }
@@ -120,7 +139,7 @@ function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
             mp.is_double ? 0.6 : 0.5,
     className:
       isNew ? "alert-polygon-new" :
-      mp.is_double && s === "alert" ? "alert-polygon-double" : "",
+        mp.is_double && s === "alert" ? "alert-polygon-double" : "",
     dashArray: s === "pre_alert" ? "5, 5" : undefined,
   };
 }
@@ -199,7 +218,7 @@ export default function MapView() {
         <ZoomListener />
         <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' />
         {polygons && (
-          <AlertFitter alerts={alerts} polygons={polygons} />
+          <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
         )}
         {mergedPolygons.map((mp) => {
           const hasNewCity = mp.city_names_he.some((name) =>
