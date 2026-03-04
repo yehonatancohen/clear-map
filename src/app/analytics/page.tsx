@@ -7,7 +7,7 @@ const AnalyticsView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center">
         <div className="text-sm text-gray-500 animate-pulse">טוען...</div>
       </div>
     ),

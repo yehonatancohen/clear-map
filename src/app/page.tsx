@@ -10,7 +10,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 
 export default function Home() {
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-gray-950">
+    <main className="relative h-[100dvh] w-screen overflow-hidden bg-gray-950">
       <MapView />
     </main>
   );

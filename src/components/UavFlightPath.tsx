@@ -5,26 +5,10 @@ import L from "leaflet";
 import { UavTrack } from "@/types";
 import { useEffect, useState } from "react";
 
-const COLOR_PALETTES = [
-  { main: "#0ea5e9", light: "#bae6fd", bg: "#7dd3fc" }, // Cyan
-  { main: "#84cc16", light: "#d9f99d", bg: "#bef264" }, // Lime
-  { main: "#f97316", light: "#ffedd5", bg: "#fdba74" }, // Orange
-  { main: "#ec4899", light: "#fbcfe8", bg: "#f9a8d4" }, // Pink
-  { main: "#eab308", light: "#fef08a", bg: "#fde047" }, // Yellow
-  { main: "#14b8a6", light: "#ccfbf1", bg: "#5eead4" }, // Teal
-];
-
-function getPaletteKey(trackId: string) {
-  // Extract number from uav_0, uav_1 etc, fallback to hash
-  const match = trackId.match(/\d+/);
-  if (match) {
-    return parseInt(match[0], 10) % COLOR_PALETTES.length;
-  }
-  let hash = 0;
-  for (let i = 0; i < trackId.length; i++) {
-    hash = trackId.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return Math.abs(hash) % COLOR_PALETTES.length;
+function getThemePalette(theme: "light" | "dark") {
+  return theme === "dark"
+    ? { main: "#38bdf8", light: "#e0f2fe", bg: "#0ea5e9" } // Vibrant Sky/Cyan for dark
+    : { main: "#0284c7", light: "#f0f9ff", bg: "#0369a1" }; // Deep Sky Blue for light
 }
 
 function getObservedStyle(color: string) {
@@ -164,7 +148,7 @@ function useGhostAnimation(tracks: UavTrack[]): Map<string, number> {
   return positions;
 }
 
-export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
+export default function UavFlightPath({ tracks, theme }: { tracks: UavTrack[], theme: "light" | "dark" }) {
   const ghostPositions = useGhostAnimation(tracks);
 
   if (tracks.length === 0) return null;
@@ -177,7 +161,7 @@ export default function UavFlightPath({ tracks }: { tracks: UavTrack[] }) {
         const lastObserved = track.observed[track.observed.length - 1];
         const ghostIdx = ghostPositions.get(track.track_id) ?? 0;
 
-        const palette = COLOR_PALETTES[getPaletteKey(track.track_id)];
+        const palette = getThemePalette(theme);
 
         return (
           <span key={track.track_id}>

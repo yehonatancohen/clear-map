@@ -36,7 +36,7 @@ function LoadingScreen({
   totalDays: number;
 }) {
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-6 px-6">
+    <div className="min-h-[100dvh] bg-gray-950 flex flex-col items-center justify-center gap-6 px-6">
       <h1 className="text-2xl font-bold text-white">טוען נתונים היסטוריים...</h1>
       <p className="text-sm text-white/50">
         יום {loadedDays} מתוך {totalDays}
@@ -232,8 +232,8 @@ function RangePicker({
           key={opt.label}
           onClick={() => onChange(opt.days)}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selected === opt.days
-              ? "bg-red-500 text-white"
-              : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70"
+            ? "bg-red-500 text-white"
+            : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/70"
             }`}
         >
           {opt.label}
@@ -278,7 +278,7 @@ export default function AnalyticsView() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-gray-950 flex items-center justify-center">
         <p className="text-red-400">{error}</p>
       </div>
     );
@@ -289,7 +289,7 @@ export default function AnalyticsView() {
     : "מאז תחילת המלחמה";
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white" dir="rtl">
+    <div className="min-h-[100dvh] bg-gray-950 text-white" dir="rtl">
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-50 liquid-glass border-b border-white/5">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -318,7 +318,7 @@ export default function AnalyticsView() {
           </div>
           <RangePicker selected={rangeDays} onChange={setRangeDays} />
         </div>
-        
+
         {/* Disclaimer */}
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-[12px] text-red-200/80 mt-2">
           <strong>שימו לב:</strong> עקב מגבלות טכניות מול מקורות המידע הרשמיים, כרגע מוצגים נתונים עבור הימים האחרונים בלבד. אנו פועלים להרחבת טווח הנתונים ההיסטוריים בהקדם.

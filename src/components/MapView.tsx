@@ -200,7 +200,7 @@ export default function MapView() {
   }, []);
 
   return (
-    <div ref={containerRef} className={`relative h-screen w-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
+    <div ref={containerRef} className={`relative h-[100dvh] w-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
       <IntelPanel
         alerts={alerts}
         onToggleFullscreen={toggleFullscreen}
@@ -232,7 +232,7 @@ export default function MapView() {
             />
           ));
         })}
-        <UavFlightPath tracks={uavTracks} />
+        <UavFlightPath tracks={uavTracks} theme={theme} />
       </MapContainer>
     </div>
   );

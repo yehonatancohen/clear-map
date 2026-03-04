@@ -92,9 +92,18 @@ export default function IntelPanel({
   const [isOpen, setIsOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [toasts, setToasts] = useState<(ActiveAlert & { toastId: number })[]>([]);
   const prevAlertIdsRef = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
   const toastIdCounter = useRef(0);
+
+  // Auto-hide disclaimer after 30 seconds
+  useEffect(() => {
+    if (showDisclaimer) {
+      const timer = setTimeout(() => setShowDisclaimer(false), 30000);
+      return () => clearTimeout(timer);
+    }
+  }, [showDisclaimer]);
 
   useEffect(() => {
     const currentIds = new Set(alerts.map((a) => a.id));
@@ -134,13 +143,8 @@ export default function IntelPanel({
 
   const hasAlerts = alerts.length > 0;
 
-  // Sort: alerts first (active → pre → telegram → after), newest first within same status
-  const sorted = [...alerts].sort((a, b) => {
-    const pri: Record<string, number> = { alert: 0, pre_alert: 1, telegram_yellow: 2, after_alert: 3 };
-    const dp = (pri[a.status] ?? 9) - (pri[b.status] ?? 9);
-    if (dp !== 0) return dp;
-    return b.timestamp - a.timestamp;
-  });
+  // Sort: always newest first
+  const sorted = [...alerts].sort((a, b) => b.timestamp - a.timestamp);
 
   return (
     <>
@@ -148,7 +152,7 @@ export default function IntelPanel({
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 sm:gap-2 glass-overlay" dir="rtl">
         {/* Logo */}
         <button
-          onClick={() => setShowAbout(!showAbout)}
+          onClick={() => { setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); }}
           className="liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-2.5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
         >
           <span className="text-[14px] sm:text-[16px] font-bold text-white tracking-tight">מפה שקופה</span>
@@ -162,7 +166,7 @@ export default function IntelPanel({
         {/* Intel toggle */}
         {hasAlerts && (
           <button
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); }}
             className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
             title="עדכונים"
           >
@@ -190,13 +194,11 @@ export default function IntelPanel({
 
         {/* Legend */}
         <button
-          onClick={() => setShowLegend(!showLegend)}
-          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''}`}
+          onClick={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); }}
+          className={`liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''}`}
           title="מקרא"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-          </svg>
+          <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
         </button>
 
         {/* Fullscreen */}
@@ -219,32 +221,51 @@ export default function IntelPanel({
 
       {/* ─── Legend mini-popup ─── */}
       {showLegend && (
-        <div className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-64 glass-overlay max-w-sm" dir="rtl">
+        <div className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-md" dir="rtl">
           <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">מקרא התרעות</h3>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
-              <span className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-              <span>התרעת צבע אדום</span>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+              <div>
+                <div className="text-[13px] font-bold text-white/90">התרעת צבע אדום</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5">ירי טילים ורקטות לפיקוד העורף. היכנסו למרחב המוגן.</div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
-              <span className="h-3 w-3 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" />
-              <span>התראות כלי טיס עוין</span>
+            <div className="flex items-start gap-3">
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" />
+              <div>
+                <div className="text-[13px] font-bold text-white/90">התראות כלי טיס עוין / כטב"ם</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5 mb-1">חדירת כלי טיס בלתי מאויש. יש להיכנס מיד למרחב המוגן.</div>
+                <div className="text-[10px] text-purple-300 leading-tight"> * המערכת מבצעת בזמן אמת הפיכת נתונים למסלול משוער, חוזה את כיוון הטיסה ומתריעה על מיקומים עתידיים פוטנציאליים טרם הגעת הכלי.</div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
-              <span className="h-3 w-3 rounded-full bg-orange-400" />
-              <span>צפי להתרעה</span>
+            <div className="flex items-start gap-3">
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-orange-400" />
+              <div>
+                <div className="text-[13px] font-bold text-white/90">צפי להתרעה</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5">הנחיה מטעם צה"ל לשהות בסמיכות למרחב מוגן.</div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
-              <span className="h-3 w-3 rounded-full bg-yellow-400" />
-              <span>מודיעין (טלגרם)</span>
+            <div className="flex items-start gap-3">
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-yellow-400" />
+              <div>
+                <div className="text-[13px] font-bold text-white/90">מודיעין (טלגרם)</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5">ניטור חכם של ערוצי טלגרם שמדווחים על שיגורים ברחבי המזרח התיכון, לעיתים לפני אזעקות. לא רשמי.</div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
-              <span className="h-3 w-3 rounded-full bg-gray-400" />
-              <span>להישאר במרחב מוגן</span>
+            <div className="flex items-start gap-3">
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-gray-400" />
+              <div>
+                <div className="text-[13px] font-bold text-white/90">להישאר במרחב מוגן</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5">יש להישאר במרחב המוגן עד 10 דקות מקבלת ההתרעה (או עד להודעה אחרת).</div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
-              <span className="h-3 w-3 rounded-full bg-red-800" />
-              <span>חדירת מחבלים</span>
+            <div className="flex items-start gap-3">
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-red-800" />
+              <div>
+                <div className="text-[13px] font-bold text-white/90">חדירת מחבלים</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5">חשש לאירוע בטחוני, היכנסו למבנה ונעלו דלתות.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -259,15 +280,34 @@ export default function IntelPanel({
           <div className="about-shimmer absolute inset-0 rounded-2xl pointer-events-none" />
           <h3 className="text-base font-bold text-white/90 mb-1.5 flex items-center gap-2">
             מפה שקופה
-            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.0</span>
+            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.1</span>
           </h3>
-          <p className="text-[12px] text-white/80 leading-relaxed mb-4">
-            מערכת התרעות ומודיעין בזמן אמת. משלבת דיווחי פיקוד העורף ומודיעין קוד פתוח להצגת תמונת המצב המדויקת ביותר.
-          </p>
+          <div className="mb-4">
+            <p className="text-[12px] text-white/80 leading-relaxed mb-2">
+              מערכת התרעות ומודיעין מתקדמת בזמן אמת. המערכת משלבת דיווחי פיקוד העורף רשמיים עם מקורות מודיעין גלוי במטרה לספק את תמונת המצב המדויקת והמהירה ביותר.
+            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-medium text-white/50">
+                פותח באהבה על ידי <strong className="text-white">יהונתן כהן</strong>
+              </p>
+              <a
+                href="https://buymeacoffee.com/yehonatancohen"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-[10px] font-bold bg-[#FFDD00] text-black px-2 py-1 rounded-md hover:bg-[#FFDD00]/90 transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                  <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                  <line x1="6" y1="1" x2="6" y2="4"></line>
+                  <line x1="10" y1="1" x2="10" y2="4"></line>
+                  <line x1="14" y1="1" x2="14" y2="4"></line>
+                </svg>
+                קפה?
+              </a>
+            </div>
+          </div>
 
-          <p className="text-[10.5px] text-red-300 leading-relaxed max-w-xs bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 mb-4 font-medium backdrop-blur-md">
-            המערכת אינה מהווה תחליף לאפליקציית פיקוד העורף. אין להסתמך עליה לצורך הצלת חיים. השימוש באחריות המשתמש בלבד.
-          </p>
           {/* Theme Toggle */}
           <div className="flex flex-col gap-2 border-t border-white/10 pt-4">
             <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider">ערכת נושא</span>
@@ -330,13 +370,13 @@ export default function IntelPanel({
             {counts.alert && (
               <div className="flex items-center gap-1 text-[11px] font-bold text-red-400">
                 <span className="h-2 w-2 rounded-full bg-red-400 status-dot-pulse" />
-                {counts.alert} התרעות
+                {counts.alert} התרעות טילים
               </div>
             )}
             {counts.uav && (
               <div className="flex items-center gap-1 text-[11px] font-bold text-purple-400">
                 <span className="h-2 w-2 rounded-full bg-purple-400 status-dot-pulse" />
-                {counts.uav} כטב&quot;ם
+                {counts.uav} התרעות כלי טיס בלתי מאויש
               </div>
             )}
             {counts.terrorist && (
@@ -348,7 +388,7 @@ export default function IntelPanel({
             {counts.pre_alert && (
               <div className="flex items-center gap-1 text-[11px] font-bold text-orange-400">
                 <span className="h-2 w-2 rounded-full bg-orange-400" />
-                {counts.pre_alert} צפי
+                {counts.pre_alert} צפי התרעה
               </div>
             )}
             {counts.after_alert && (
@@ -360,7 +400,7 @@ export default function IntelPanel({
             {counts.telegram_yellow && (
               <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-400">
                 <span className="h-2 w-2 rounded-full bg-yellow-400" />
-                {counts.telegram_yellow} מודיעין
+                {counts.telegram_yellow} מודיעין טלגרם
               </div>
             )}
           </div>
@@ -399,13 +439,13 @@ export default function IntelPanel({
           {counts.alert && (
             <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-red-400">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-red-400 status-dot-pulse" />
-              {counts.alert} התרעות פעילות
+              {counts.alert} התרעות ירי רקטות וטילים
             </div>
           )}
           {counts.uav && (
             <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-purple-400">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-purple-400 status-dot-pulse" />
-              {counts.uav} כטב&quot;ם
+              {counts.uav} התרעות חדירת כלי טיס עוין
             </div>
           )}
           {counts.terrorist && (
@@ -417,7 +457,7 @@ export default function IntelPanel({
           {counts.pre_alert && (
             <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-orange-400">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-orange-400" />
-              {counts.pre_alert} צפי התרעה
+              {counts.pre_alert} התרעות מוקדמות
             </div>
           )}
           {counts.after_alert && (
@@ -432,6 +472,40 @@ export default function IntelPanel({
               {counts.telegram_yellow} מודיעין
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Disclaimer Top Banner ─── */}
+      {showDisclaimer && (
+        <div className="absolute top-16 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:w-[500px] z-[2000] pointer-events-none" dir="rtl">
+          <div className="liquid-glass border border-red-500/30 rounded-xl p-4 shadow-xl shadow-red-500/10 pointer-events-auto flex items-start gap-4">
+            <div className="bg-red-500/20 p-2 rounded-full flex-shrink-0 mt-0.5">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-400">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+
+            <div className="flex-1">
+              <h2 className="text-[14px] sm:text-[15px] font-bold text-white tracking-tight mb-1">
+                אזהרת שימוש במערכת
+              </h2>
+              <p className="text-[12px] sm:text-[13px] leading-snug text-white/80 font-medium">
+                המערכת אינה מהווה תחליף לצופרי פיקוד העורף. המידע (ובייחוד אזעקות המודיעין) עשוי להיות שגוי. השימוש באחריות המשתמש בלבד.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowDisclaimer(false)}
+              className="flex-shrink-0 text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-1.5 rounded-lg active:scale-95"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
     </>
