@@ -13,8 +13,8 @@ interface FetchState {
   loading: boolean;
   progress: number;
   error: string | null;
-  loadedMonths: number;
-  totalMonths: number;
+  loadedDays: number;
+  totalDays: number;
 }
 
 function pad(n: number) {
@@ -66,8 +66,8 @@ export function useOrefHistory(): FetchState {
     loading: !_cache,
     progress: _cache ? 100 : 0,
     error: null,
-    loadedMonths: 0,
-    totalMonths: 0,
+    loadedDays: 0,
+    totalDays: 0,
   });
   const abortRef = useRef<AbortController | null>(null);
 
@@ -79,7 +79,7 @@ export function useOrefHistory(): FetchState {
 
     (async () => {
       const ranges = generateDayRanges();
-      setState((s) => ({ ...s, totalMonths: ranges.length }));
+      setState((s) => ({ ...s, totalDays: ranges.length }));
 
       const uniqueAlertsMap = new Map<string, OrefHistoryAlert>();
 
@@ -99,13 +99,13 @@ export function useOrefHistory(): FetchState {
           setState((s) => ({
             ...s,
             alerts: currentList,
-            loadedMonths: i + 1,
+            loadedDays: i + 1,
             progress: Math.round(((i + 1) / ranges.length) * 100),
           }));
         } catch (err: unknown) {
           if (controller.signal.aborted) return;
           console.error(`Failed to fetch for day ${ranges[i].from}:`, err);
-          setState((s) => ({ ...s, loadedMonths: i + 1 }));
+          setState((s) => ({ ...s, loadedDays: i + 1 }));
         }
 
         // Delay to avoid hammering (session initialization in proxy is heavy)

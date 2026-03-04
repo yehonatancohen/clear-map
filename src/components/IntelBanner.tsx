@@ -192,7 +192,7 @@ export default function IntelPanel({
         <button
           onClick={() => setShowLegend(!showLegend)}
           className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''}`}
-          title="מקרא מפה"
+          title="מקרא"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
             <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
@@ -220,7 +220,7 @@ export default function IntelPanel({
       {/* ─── Legend mini-popup ─── */}
       {showLegend && (
         <div className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-64 glass-overlay max-w-sm" dir="rtl">
-          <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">מקרא מפה</h3>
+          <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">מקרא התרעות</h3>
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
               <span className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
@@ -264,25 +264,6 @@ export default function IntelPanel({
           <p className="text-[12px] text-white/80 leading-relaxed mb-4">
             מערכת התרעות ומודיעין בזמן אמת. משלבת דיווחי פיקוד העורף ומודיעין קוד פתוח להצגת תמונת המצב המדויקת ביותר.
           </p>
-
-          <div className="flex flex-col gap-2 mb-4 p-3 bg-white/5 rounded-xl border border-white/10">
-            <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider mb-1">מקרא מפה</span>
-            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" /> התרעת צבע אדום
-            </div>
-            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
-              <span className="h-2.5 w-2.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" /> כטב״ם / חדירת כלי טיס
-            </div>
-            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
-              <span className="h-2.5 w-2.5 rounded-full bg-orange-400" /> צפי להתרעה
-            </div>
-            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
-              <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" /> דיווח מודיעין (טלגרם)
-            </div>
-            <div className="flex items-center gap-2 text-[12px] font-medium text-white/90">
-              <span className="h-2.5 w-2.5 rounded-full bg-gray-400" /> להישאר בממ״ד תחת אזהרה
-            </div>
-          </div>
 
           <p className="text-[10.5px] text-red-300 leading-relaxed max-w-xs bg-red-500/10 p-2.5 rounded-lg border border-red-500/20 mb-4 font-medium backdrop-blur-md">
             המערכת אינה מהווה תחליף לאפליקציית פיקוד העורף. אין להסתמך עליה לצורך הצלת חיים. השימוש באחריות המשתמש בלבד.

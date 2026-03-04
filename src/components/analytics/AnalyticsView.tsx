@@ -28,18 +28,18 @@ const RANGE_OPTIONS: { label: string; days: number | null }[] = [
 
 function LoadingScreen({
   progress,
-  loadedMonths,
-  totalMonths,
+  loadedDays,
+  totalDays,
 }: {
   progress: number;
-  loadedMonths: number;
-  totalMonths: number;
+  loadedDays: number;
+  totalDays: number;
 }) {
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-6 px-6">
       <h1 className="text-2xl font-bold text-white">טוען נתונים היסטוריים...</h1>
       <p className="text-sm text-white/50">
-        חודש {loadedMonths} מתוך {totalMonths}
+        יום {loadedDays} מתוך {totalDays}
       </p>
       <div className="w-full max-w-md h-2 bg-white/10 rounded-full overflow-hidden">
         <div
@@ -246,7 +246,7 @@ function RangePicker({
 // ── Main View ──
 
 export default function AnalyticsView() {
-  const { alerts: allAlerts, loading, progress, loadedMonths, totalMonths, error } =
+  const { alerts: allAlerts, loading, progress, loadedDays, totalDays, error } =
     useOrefHistory();
 
   const [rangeDays, setRangeDays] = useState<number | null>(7);
@@ -270,8 +270,8 @@ export default function AnalyticsView() {
     return (
       <LoadingScreen
         progress={progress}
-        loadedMonths={loadedMonths}
-        totalMonths={totalMonths}
+        loadedDays={loadedDays}
+        totalDays={totalDays}
       />
     );
   }
@@ -317,6 +317,11 @@ export default function AnalyticsView() {
             </p>
           </div>
           <RangePicker selected={rangeDays} onChange={setRangeDays} />
+        </div>
+        
+        {/* Disclaimer */}
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-[12px] text-red-200/80 mt-2">
+          <strong>שימו לב:</strong> עקב מגבלות טכניות מול מקורות המידע הרשמיים, כרגע מוצגים נתונים עבור הימים האחרונים בלבד. אנו פועלים להרחבת טווח הנתונים ההיסטוריים בהקדם.
         </div>
 
         {isEmpty ? (
