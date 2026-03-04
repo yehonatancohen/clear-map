@@ -22,7 +22,14 @@ export function useFirebaseAlerts(): ActiveAlert[] {
 
       // Firebase stores as object keyed by city name — convert to array
       const alertList: ActiveAlert[] = Object.values(data);
-      setAlerts(alertList);
+
+      // Filter test data in production
+      const filtered = alertList.filter(a => {
+        if (process.env.NODE_ENV !== 'development' && a.is_test) return false;
+        return true;
+      });
+
+      setAlerts(filtered);
     });
 
     return () => unsubscribe();

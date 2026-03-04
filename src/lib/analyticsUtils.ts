@@ -147,26 +147,31 @@ export function categoryBreakdown(
   alerts: OrefHistoryAlert[],
 ): { category: number; desc: string; count: number; color: string }[] {
   const map = new Map<number, { desc: string; count: number }>();
-  for (const a of alerts) {
-    const existing = map.get(a.category);
-    if (existing) {
-      existing.count++;
-    } else {
-      const desc = a.category_desc?.replace(/ - האירוע הסתיים$/, "") ?? `קטגוריה ${a.category}`;
-      map.set(a.category, { desc, count: 1 });
-    }
-  }
-
   const colorMap: Record<number, string> = {
     1: "bg-red-500",
     2: "bg-purple-500",
-    3: "bg-yellow-500",
+    3: "bg-red-800",
     7: "bg-amber-600",
     8: "bg-amber-600",
     10: "bg-red-800",
     12: "bg-orange-500",
     14: "bg-blue-500",
   };
+
+  const nameMap: Record<number, string> = {
+    2: "התראות כלי טיס עוין",
+  };
+
+  for (const a of alerts) {
+    const existing = map.get(a.category);
+    if (existing) {
+      existing.count++;
+    } else {
+      let desc = a.category_desc?.replace(/ - האירוע הסתיים$/, "") ?? `קטגוריה ${a.category}`;
+      if (nameMap[a.category]) desc = nameMap[a.category];
+      map.set(a.category, { desc, count: 1 });
+    }
+  }
 
   return [...map.entries()]
     .map(([category, { desc, count }]) => ({

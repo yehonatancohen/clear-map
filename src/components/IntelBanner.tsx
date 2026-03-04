@@ -32,7 +32,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
     bg: "border-red-400/20",
   },
   uav: {
-    label: "כטב\"ם",
+    label: "התראות כלי טיס...",
     color: "text-purple-400",
     dot: "bg-purple-400",
     bg: "border-purple-400/20",
@@ -91,6 +91,7 @@ export default function IntelPanel({
 }: IntelPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
   const [toasts, setToasts] = useState<(ActiveAlert & { toastId: number })[]>([]);
   const prevAlertIdsRef = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
   const toastIdCounter = useRef(0);
@@ -187,6 +188,17 @@ export default function IntelPanel({
           </button>
         </Link>
 
+        {/* Legend */}
+        <button
+          onClick={() => setShowLegend(!showLegend)}
+          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''}`}
+          title="מקרא מפה"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
+        </button>
+
         {/* Fullscreen */}
         <button
           onClick={onToggleFullscreen}
@@ -204,6 +216,39 @@ export default function IntelPanel({
           )}
         </button>
       </div>
+
+      {/* ─── Legend mini-popup ─── */}
+      {showLegend && (
+        <div className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-64 glass-overlay max-w-sm" dir="rtl">
+          <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">מקרא מפה</h3>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
+              <span className="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+              <span>התרעת צבע אדום</span>
+            </div>
+            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
+              <span className="h-3 w-3 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" />
+              <span>התראות כלי טיס עוין</span>
+            </div>
+            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
+              <span className="h-3 w-3 rounded-full bg-orange-400" />
+              <span>צפי להתרעה</span>
+            </div>
+            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
+              <span className="h-3 w-3 rounded-full bg-yellow-400" />
+              <span>מודיעין (טלגרם)</span>
+            </div>
+            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
+              <span className="h-3 w-3 rounded-full bg-gray-400" />
+              <span>להישאר במרחב מוגן</span>
+            </div>
+            <div className="flex items-center gap-3 text-[13px] font-medium text-white/90">
+              <span className="h-3 w-3 rounded-full bg-red-800" />
+              <span>חדירת מחבלים</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── About mini-popup ─── */}
       {showAbout && (

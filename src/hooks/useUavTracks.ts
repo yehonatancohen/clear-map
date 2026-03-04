@@ -28,8 +28,16 @@ export function useUavTracks(): UavTrack[] {
         heading_deg: (t.heading_deg as number) ?? 0,
         speed_kmh: (t.speed_kmh as number) ?? 0,
         last_updated: (t.last_updated as number) ?? 0,
+        is_test: (t.is_test as boolean) ?? false,
       }));
-      setTracks(trackList);
+
+      // Filter test data in production
+      const filtered = trackList.filter(t => {
+        if (process.env.NODE_ENV !== 'development' && t.is_test) return false;
+        return true;
+      });
+
+      setTracks(filtered);
     });
 
     return () => unsubscribe();

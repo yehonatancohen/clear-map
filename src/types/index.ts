@@ -5,6 +5,7 @@ export interface ActiveAlert {
   timestamp: number;
   is_double: boolean;
   status: string;
+  is_test?: boolean;
 }
 
 export interface UavTrack {
@@ -15,6 +16,7 @@ export interface UavTrack {
   speed_kmh: number;
   origin_type?: string;
   last_updated: number;
+  is_test?: boolean;
 }
 
 export interface OrefHistoryAlert {
