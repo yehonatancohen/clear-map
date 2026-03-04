@@ -146,6 +146,23 @@ export default function IntelPanel({
   // Sort: always newest first
   const sorted = [...alerts].sort((a, b) => b.timestamp - a.timestamp);
 
+  const handleShare = async () => {
+    const url = window.location.origin;
+    const title = "מפה שקופה - מערכת התרעות ומודיעין";
+    const text = "הצטרפו כדי לצפות בהתרעות ובמודיעין בזמן אמת.";
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+      } catch (err) {
+        console.log("Error sharing", err);
+      }
+    } else {
+      navigator.clipboard.writeText(url);
+      alert("הקישור הועתק ללוח!");
+    }
+  };
+
   return (
     <>
       {/* ─── Top bar: Logo + controls ─── */}
@@ -200,6 +217,8 @@ export default function IntelPanel({
         >
           <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
         </button>
+
+
 
         {/* Fullscreen */}
         <button
@@ -338,6 +357,16 @@ export default function IntelPanel({
                 <span className="text-[12px] font-medium">לילה</span>
               </button>
             </div>
+
+            <button
+              onClick={handleShare}
+              className="mt-2 flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30 active:scale-[0.98]"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+              </svg>
+              <span className="text-[13px] font-bold">שתף את המפה</span>
+            </button>
           </div>
         </div>
       )}
@@ -477,7 +506,7 @@ export default function IntelPanel({
 
       {/* ─── Disclaimer Top Banner ─── */}
       {showDisclaimer && (
-        <div className="absolute top-16 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:w-[500px] z-[2000] pointer-events-none" dir="rtl">
+        <div className="absolute top-16 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[500px] z-[2000] pointer-events-none" dir="rtl">
           <div className="liquid-glass border border-red-500/30 rounded-xl p-4 shadow-xl shadow-red-500/10 pointer-events-auto flex items-start gap-4">
             <div className="bg-red-500/20 p-2 rounded-full flex-shrink-0 mt-0.5">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-400">
