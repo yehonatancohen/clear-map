@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { ActiveAlert } from "@/types";
 
@@ -97,6 +97,59 @@ export default function IntelPanel({
   const prevAlertIdsRef = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
   const toastIdCounter = useRef(0);
 
+  // ── Secret troll mode ──
+  const [trollEnabled, setTrollEnabled] = useState(false);
+  const [trollPlaying, setTrollPlaying] = useState(false);
+  const logoClickCount = useRef(0);
+  const logoClickTimer = useRef<NodeJS.Timeout | null>(null);
+  const darkClickCount = useRef(0);
+  const darkClickTimer = useRef<NodeJS.Timeout | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const handleLogoSecretTap = useCallback(() => {
+    logoClickCount.current++;
+    if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
+    logoClickTimer.current = setTimeout(() => { logoClickCount.current = 0; }, 1500);
+    if (logoClickCount.current >= 5) {
+      logoClickCount.current = 0;
+      setTrollEnabled(prev => {
+        const next = !prev;
+        if (!next && trollPlaying) setTrollPlaying(false);
+        return next;
+      });
+    }
+  }, [trollPlaying]);
+
+  const handleDarkSecretTap = useCallback(() => {
+    if (!trollEnabled) return;
+    darkClickCount.current++;
+    if (darkClickTimer.current) clearTimeout(darkClickTimer.current);
+    darkClickTimer.current = setTimeout(() => { darkClickCount.current = 0; }, 1500);
+    if (darkClickCount.current >= 5) {
+      darkClickCount.current = 0;
+      setTrollPlaying(true);
+    }
+  }, [trollEnabled]);
+
+  // Watch for Binyamina pre_alert
+  useEffect(() => {
+    if (!trollEnabled || trollPlaying) return;
+    const hasBinyaminaPreAlert = alerts.some(
+      a => a.status === "pre_alert" && /בנימינה/i.test(a.city_name_he)
+    );
+    if (hasBinyaminaPreAlert) setTrollPlaying(true);
+  }, [alerts, trollEnabled, trollPlaying]);
+
+  // Auto-play video with sound when trollPlaying changes
+  useEffect(() => {
+    if (trollPlaying && videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.volume = 1;
+      videoRef.current.muted = false;
+      videoRef.current.play().catch(() => { });
+    }
+  }, [trollPlaying]);
+
   // Auto-hide disclaimer after 30 seconds
   useEffect(() => {
     if (showDisclaimer) {
@@ -169,7 +222,7 @@ export default function IntelPanel({
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 sm:gap-2 glass-overlay" dir="rtl">
         {/* Logo / About */}
         <button
-          onClick={() => { setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); }}
+          onClick={() => { handleLogoSecretTap(); setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); }}
           className="liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
         >
           <img
@@ -348,7 +401,7 @@ export default function IntelPanel({
                 <span className="text-[12px] font-medium">בוקר</span>
               </button>
               <button
-                onClick={() => onThemeChange("dark")}
+                onClick={() => { onThemeChange("dark"); handleDarkSecretTap(); }}
                 className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "dark"
                   ? "bg-white/20 text-white border border-white/20"
                   : "bg-white/5 text-white/40 hover:bg-white/10"
@@ -538,6 +591,22 @@ export default function IntelPanel({
               </svg>
             </button>
           </div>
+        </div>
+      )}
+      {/* ─── Secret troll video overlay ─── */}
+      {trollPlaying && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black flex items-center justify-center cursor-pointer"
+          onClick={() => setTrollPlaying(false)}
+        >
+          <video
+            ref={videoRef}
+            src="/pre_alert_troll.mp4"
+            className="w-full h-full object-contain"
+            autoPlay
+            playsInline
+            onEnded={() => setTrollPlaying(false)}
+          />
         </div>
       )}
     </>
