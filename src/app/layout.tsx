@@ -20,11 +20,20 @@ export const metadata: Metadata = {
     siteName: "מפה שקופה",
     locale: "he_IL",
     type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1080,
+        height: 1080,
+        alt: "מפה שקופה בזמן אמת",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "מפה שקופה | Clear Map",
     description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
+    images: ["/og-image.png"],
   },
   manifest: "/manifest.json",
   icons: {
