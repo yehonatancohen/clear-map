@@ -487,8 +487,8 @@ export default function IntelPanel({
             </div>
           )}
           {counts.pre_alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-yellow-400">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-orange-400">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-orange-400" />
               {counts.pre_alert} התרעות מוקדמות
             </div>
           )}
