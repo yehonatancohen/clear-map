@@ -13,17 +13,17 @@ interface IntelPanelProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; bg: string }> = {
-  telegram_yellow: {
+  telegram_intel: {
     label: "מודיעין",
-    color: "text-yellow-400",
-    dot: "bg-yellow-400",
-    bg: "border-yellow-400/20",
+    color: "text-sky-400",
+    dot: "bg-sky-400",
+    bg: "border-sky-400/20",
   },
   pre_alert: {
     label: "צפי להתרעה",
-    color: "text-orange-400",
-    dot: "bg-orange-400",
-    bg: "border-orange-400/20",
+    color: "text-yellow-400",
+    dot: "bg-yellow-400",
+    bg: "border-yellow-400/20",
   },
   alert: {
     label: "התרעה",
@@ -45,9 +45,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
   },
   after_alert: {
     label: "להישאר בממ\"ד",
-    color: "text-gray-400",
-    dot: "bg-gray-400",
-    bg: "border-gray-400/20",
+    color: "text-red-400/70",
+    dot: "bg-red-400/50",
+    bg: "border-red-400/10",
   },
 };
 
@@ -167,29 +167,31 @@ export default function IntelPanel({
     <>
       {/* ─── Top bar: Logo + controls ─── */}
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 sm:gap-2 glass-overlay" dir="rtl">
-        {/* Logo */}
+        {/* Logo / About */}
         <button
           onClick={() => { setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); }}
-          className="liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-2.5 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+          className="liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
         >
-          <span className="text-[14px] sm:text-[16px] font-bold text-white tracking-tight">מפה שקופה</span>
-          {hasAlerts && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
-              {alerts.length}
-            </span>
-          )}
+          <img
+            src={theme === "dark" ? "/logo-dark-theme.png" : "/logo-light-theme.png"}
+            alt="מפה שקופה"
+            className="h-8 sm:h-9 w-auto object-contain"
+          />
         </button>
 
         {/* Intel toggle */}
         {hasAlerts && (
           <button
             onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); }}
-            className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
+            className="relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
             title="עדכונים"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
               <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
             </svg>
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white shadow-md">
+              {alerts.length}
+            </span>
           </button>
         )}
 
@@ -259,21 +261,21 @@ export default function IntelPanel({
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-orange-400" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-yellow-400" />
               <div>
                 <div className="text-[13px] font-bold text-white/90">צפי להתרעה</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">הנחיה מטעם צה"ל לשהות בסמיכות למרחב מוגן.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-yellow-400" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-sky-400" />
               <div>
                 <div className="text-[13px] font-bold text-white/90">מודיעין (טלגרם)</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">ניטור חכם של ערוצי טלגרם שמדווחים על שיגורים ברחבי המזרח התיכון, לעיתים לפני אזעקות. לא רשמי.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-gray-400" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-red-400/50" />
               <div>
                 <div className="text-[13px] font-bold text-white/90">להישאר במרחב מוגן</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">יש להישאר במרחב המוגן עד 10 דקות מקבלת ההתרעה (או עד להודעה אחרת).</div>
@@ -307,7 +309,8 @@ export default function IntelPanel({
             </p>
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium text-white/50">
-                פותח באהבה על ידי <strong className="text-white">יהונתן כהן</strong>
+                פותח באהבה על ידי <strong className="text-white">יהונתן כהן</strong><br />
+                <a href="mailto:yoncohenyon@gmail.com" className="hover:text-white transition-colors underline underline-offset-2">ליצור קשר</a>
               </p>
               <a
                 href="https://buymeacoffee.com/yehonatancohen"
@@ -415,21 +418,21 @@ export default function IntelPanel({
               </div>
             )}
             {counts.pre_alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-orange-400">
-                <span className="h-2 w-2 rounded-full bg-orange-400" />
+              <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-400">
+                <span className="h-2 w-2 rounded-full bg-yellow-400" />
                 {counts.pre_alert} צפי התרעה
               </div>
             )}
             {counts.after_alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-gray-300">
-                <span className="h-2 w-2 rounded-full bg-gray-400" />
+              <div className="flex items-center gap-1 text-[11px] font-bold text-red-400/70">
+                <span className="h-2 w-2 rounded-full bg-red-400/50" />
                 {counts.after_alert} להישאר בממ"ד
               </div>
             )}
-            {counts.telegram_yellow && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-400">
-                <span className="h-2 w-2 rounded-full bg-yellow-400" />
-                {counts.telegram_yellow} מודיעין טלגרם
+            {counts.telegram_intel && (
+              <div className="flex items-center gap-1 text-[11px] font-bold text-sky-400">
+                <span className="h-2 w-2 rounded-full bg-sky-400" />
+                {counts.telegram_intel} מודיעין טלגרם
               </div>
             )}
           </div>
@@ -484,21 +487,21 @@ export default function IntelPanel({
             </div>
           )}
           {counts.pre_alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-orange-400">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-orange-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-yellow-400">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-400" />
               {counts.pre_alert} התרעות מוקדמות
             </div>
           )}
           {counts.after_alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-gray-300">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-gray-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-red-400/70">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-red-400/50" />
               {counts.after_alert} להישאר בממ"ד
             </div>
           )}
-          {counts.telegram_yellow && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-yellow-400">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-400" />
-              {counts.telegram_yellow} מודיעין
+          {counts.telegram_intel && (
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-sky-400">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-sky-400" />
+              {counts.telegram_intel} מודיעין
             </div>
           )}
         </div>

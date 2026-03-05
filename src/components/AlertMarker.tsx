@@ -14,17 +14,18 @@ export function AlertMarker({ alert, polygon }: AlertMarkerProps) {
     <Polygon
       positions={polygon}
       pathOptions={{
-        color: alert.status === "telegram_yellow" ? "#eab308" :
-          alert.status === "after_alert" ? "#6b7280" :
-          alert.status === "pre_alert" ? "#f97316" : "red",
+        color: alert.status === "telegram_intel" ? "#38bdf8" :
+          alert.status === "after_alert" ? "#ef4444" :
+            alert.status === "pre_alert" ? "#facc15" : "red",
         weight: alert.status === "pre_alert" ? 3 : 2,
-        fillColor: alert.status === "telegram_yellow" ? "#fef08a" :
-          alert.status === "after_alert" ? "#9ca3af" :
-          alert.status === "pre_alert" ? "#f97316" : "red",
+        fillColor: alert.status === "telegram_intel" ? "#7dd3fc" :
+          alert.status === "after_alert" ? "#ef4444" :
+            alert.status === "pre_alert" ? "#fde047" : "red",
         fillOpacity: alert.status === "pre_alert" ? 0.0 :
-          alert.status === "telegram_yellow" ? 0.4 :
-            alert.status === "after_alert" ? 0.3 :
+          alert.status === "telegram_intel" ? 0.4 :
+            alert.status === "after_alert" ? 0.15 :
               alert.is_double ? 0.5 : 0.4,
+        opacity: alert.status === "after_alert" ? 0.4 : 1,
         className: alert.is_double && alert.status === "alert" ? "alert-polygon-double" : "",
         dashArray: alert.status === "pre_alert" ? "5, 5" : undefined,
       }}

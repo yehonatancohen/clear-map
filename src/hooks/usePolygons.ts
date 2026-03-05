@@ -19,6 +19,10 @@ export function usePolygons(): PolygonLookup | null {
     fetch(DATA_URL + "?v=2") // Add version query to bust cache immediately
       .then((res) => res.json())
       .then((data: PolygonLookup) => {
+        // Remove the ETWS country-wide dummy polygon that shows up in Egypt
+        if (data["בחלק מהאזורים בארץ"]) {
+          delete data["בחלק מהאזורים בארץ"];
+        }
         setPolygons(data);
         // Clear old cached data in case it's wasting space
         localStorage.removeItem(STORAGE_KEY);

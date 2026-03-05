@@ -113,20 +113,20 @@ function AlertFitter({
 function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
   const s = mp.status || "alert";
   const colorMap: Record<string, string> = {
-    telegram_yellow: "#eab308",
-    after_alert: "#94a3b8",
-    pre_alert: "#f97316",
-    uav: "#a855f7",
-    terrorist: "#991b1b",
-    alert: "#ef4444",
+    telegram_intel: "#00E5FF",
+    pre_alert: "#ff6a00ff",
+    alert: "#FF2A2A",
+    after_alert: "#ff2a2a6c",
+    uav: "#E040FB",
+    terrorist: "#FF0055",
   };
   const fillMap: Record<string, string> = {
-    telegram_yellow: "#fef08a",
-    after_alert: "#cbd5e1",
-    pre_alert: "#f97316",
-    uav: "#c084fc",
-    terrorist: "#b91c1c",
-    alert: "#ef4444",
+    telegram_intel: "#00E5FF",
+    pre_alert: "#FFEA00",
+    alert: "#FF2A2A",
+    after_alert: "#ff2a2ac7",
+    uav: "#E040FB",
+    terrorist: "#FF0055",
   };
   return {
     color: colorMap[s] || "#ef4444",
@@ -134,9 +134,10 @@ function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
     fillColor: fillMap[s] || "#ef4444",
     fillOpacity:
       s === "pre_alert" ? 0.0 :
-        s === "telegram_yellow" ? 0.4 :
-          s === "after_alert" ? 0.2 :
+        s === "telegram_intel" ? 0.4 :
+          s === "after_alert" ? 0.15 :
             mp.is_double ? 0.6 : 0.5,
+    opacity: s === "after_alert" ? 0.4 : 1,
     className:
       isNew ? "alert-polygon-new" :
         mp.is_double && s === "alert" ? "alert-polygon-double" : "",
