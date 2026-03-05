@@ -10,6 +10,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://clearmap.co.il"),
   title: "מפה שקופה | Clear Map",
   description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
   keywords: ["צבע אדום", "מפה", "מודיעין", "התרעות", "פיקוד העורף", "כטבם", "טלגרם", "ישראל", "clear map"],
@@ -22,9 +23,9 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/og-image.png",
-        width: 1080,
-        height: 1080,
+        url: "/og-image-wa.jpg",
+        width: 600,
+        height: 600,
         alt: "מפה שקופה בזמן אמת",
       },
     ],
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "מפה שקופה | Clear Map",
     description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
-    images: ["/og-image.png"],
+    images: ["/og-image-wa.jpg"],
   },
   manifest: "/manifest.json",
   icons: {
