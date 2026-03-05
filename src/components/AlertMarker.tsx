@@ -16,11 +16,11 @@ export function AlertMarker({ alert, polygon }: AlertMarkerProps) {
       pathOptions={{
         color: alert.status === "telegram_intel" ? "#38bdf8" :
           alert.status === "after_alert" ? "#ef4444" :
-            alert.status === "pre_alert" ? "#facc15" : "red",
+            alert.status === "pre_alert" ? "#ff6a00ff" : "red",
         weight: alert.status === "pre_alert" ? 3 : 2,
         fillColor: alert.status === "telegram_intel" ? "#7dd3fc" :
           alert.status === "after_alert" ? "#ef4444" :
-            alert.status === "pre_alert" ? "#fde047" : "red",
+            alert.status === "pre_alert" ? "#ff6a00ff" : "red",
         fillOpacity: alert.status === "pre_alert" ? 0.0 :
           alert.status === "telegram_intel" ? 0.4 :
             alert.status === "after_alert" ? 0.15 :

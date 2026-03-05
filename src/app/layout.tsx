@@ -12,12 +12,12 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://clearmap.co.il"),
-  title: "מפה שקופה | Clear Map",
-  description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
+  title: "מפה שקופה",
+  description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין מוקדם",
   keywords: ["צבע אדום", "מפה", "מודיעין", "התרעות", "פיקוד העורף", "כטבם", "טלגרם", "ישראל", "clear map"],
   openGraph: {
-    title: "מפה שקופה | Clear Map",
-    description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
+    title: "מפה שקופה",
+    description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין מוקדם",
     url: "https://clearmap.co.il",
     siteName: "מפה שקופה",
     locale: "he_IL",
@@ -33,8 +33,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "מפה שקופה | Clear Map",
-    description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין טלגרם",
+    title: "מפה שקופה",
+    description: "מערכת מודיעין ויזואלית בזמן אמת — התרעות פיקוד העורף ומודיעין מוקדם",
     images: ["/og-image-wa.jpg"],
   },
   manifest: "/manifest.json",
