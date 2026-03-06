@@ -15,39 +15,39 @@ interface IntelPanelProps {
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; bg: string }> = {
   telegram_intel: {
     label: "מודיעין",
-    color: "text-sky-400",
-    dot: "bg-sky-400",
-    bg: "border-sky-400/20",
+    color: "text-[#00E5FF]",
+    dot: "bg-[#00E5FF]",
+    bg: "border-[#00E5FF]/20",
   },
   pre_alert: {
-    label: "צפי להתרעה",
-    color: "text-yellow-400",
-    dot: "bg-yellow-400",
-    bg: "border-yellow-400/20",
+    label: "התרעות מוקדמות",
+    color: "text-[#FF6A00]",
+    dot: "bg-[#FF6A00]",
+    bg: "border-[#FF6A00]/20",
   },
   alert: {
-    label: "התרעה",
-    color: "text-red-400",
-    dot: "bg-red-400",
-    bg: "border-red-400/20",
+    label: "התרעות ירי רקטות וטילים",
+    color: "text-[#FF2A2A]",
+    dot: "bg-[#FF2A2A]",
+    bg: "border-[#FF2A2A]/20",
   },
   uav: {
-    label: "התראות כלי טיס...",
-    color: "text-purple-400",
-    dot: "bg-purple-400",
-    bg: "border-purple-400/20",
+    label: "התרעות חדירת כלי טיס עוין",
+    color: "text-[#E040FB]",
+    dot: "bg-[#E040FB]",
+    bg: "border-[#E040FB]/20",
   },
   terrorist: {
     label: "חדירת מחבלים",
-    color: "text-red-800",
-    dot: "bg-red-800",
-    bg: "border-red-800/20",
+    color: "text-[#FF0055]",
+    dot: "bg-[#FF0055]",
+    bg: "border-[#FF0055]/20",
   },
   after_alert: {
     label: "להישאר בממ\"ד",
-    color: "text-red-400/70",
-    dot: "bg-red-400/50",
-    bg: "border-red-400/10",
+    color: "text-[#FF2A2A]/70",
+    dot: "bg-[#FF2A2A]/50",
+    bg: "border-[#FF2A2A]/10",
   },
 };
 
@@ -299,43 +299,43 @@ export default function IntelPanel({
           <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">מקרא התרעות</h3>
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF2A2A] shadow-[0_0_8px_rgba(255,42,42,0.8)]" />
               <div>
-                <div className="text-[13px] font-bold text-white/90">התרעת צבע אדום</div>
+                <div className="text-[13px] font-bold text-white/90">התרעות ירי רקטות וטילים</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">ירי טילים ורקטות לפיקוד העורף. היכנסו למרחב המוגן.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.8)]" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#E040FB] shadow-[0_0_8px_rgba(224,64,251,0.8)]" />
               <div>
-                <div className="text-[13px] font-bold text-white/90">התראות כלי טיס עוין / כטב"ם</div>
+                <div className="text-[13px] font-bold text-white/90">התרעות חדירת כלי טיס עוין</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5 mb-1">חדירת כלי טיס בלתי מאויש. יש להיכנס מיד למרחב המוגן.</div>
                 <div className="text-[10px] text-purple-300 leading-tight"> * המערכת מבצעת בזמן אמת הפיכת נתונים למסלול משוער, חוזה את כיוון הטיסה ומתריעה על מיקומים עתידיים פוטנציאליים טרם הגעת הכלי.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-yellow-400" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF6A00]" />
               <div>
-                <div className="text-[13px] font-bold text-white/90">צפי להתרעה</div>
+                <div className="text-[13px] font-bold text-white/90">התרעות מוקדמות</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">הנחיה מטעם צה"ל לשהות בסמיכות למרחב מוגן.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-sky-400" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#00E5FF]" />
               <div>
-                <div className="text-[13px] font-bold text-white/90">מודיעין (טלגרם)</div>
+                <div className="text-[13px] font-bold text-white/90">מודיעין</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">ניטור חכם של ערוצי טלגרם שמדווחים על שיגורים ברחבי המזרח התיכון, לעיתים לפני אזעקות. לא רשמי.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-red-400/50" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF2A2A]/50" />
               <div>
-                <div className="text-[13px] font-bold text-white/90">להישאר במרחב מוגן</div>
+                <div className="text-[13px] font-bold text-white/90">להישאר בממ"ד</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">יש להישאר במרחב המוגן עד 10 דקות מקבלת ההתרעה (או עד להודעה אחרת).</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-red-800" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF0055]" />
               <div>
                 <div className="text-[13px] font-bold text-white/90">חדירת מחבלים</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">חשש לאירוע בטחוני, היכנסו למבנה ונעלו דלתות.</div>
@@ -453,39 +453,39 @@ export default function IntelPanel({
           {/* Status summary bar */}
           <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5">
             {counts.alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-red-400">
-                <span className="h-2 w-2 rounded-full bg-red-400 status-dot-pulse" />
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF2A2A]">
+                <span className="h-2 w-2 rounded-full bg-[#FF2A2A] status-dot-pulse" />
                 {counts.alert} התרעות טילים
               </div>
             )}
             {counts.uav && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-purple-400">
-                <span className="h-2 w-2 rounded-full bg-purple-400 status-dot-pulse" />
-                {counts.uav} התרעות כלי טיס בלתי מאויש
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#E040FB]">
+                <span className="h-2 w-2 rounded-full bg-[#E040FB] status-dot-pulse" />
+                {counts.uav} התרעות כלי טיס
               </div>
             )}
             {counts.terrorist && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-red-800">
-                <span className="h-2 w-2 rounded-full bg-red-800 status-dot-pulse" />
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF0055]">
+                <span className="h-2 w-2 rounded-full bg-[#FF0055] status-dot-pulse" />
                 {counts.terrorist} חדירת מחבלים
               </div>
             )}
             {counts.pre_alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-yellow-400">
-                <span className="h-2 w-2 rounded-full bg-yellow-400" />
-                {counts.pre_alert} צפי התרעה
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF6A00]">
+                <span className="h-2 w-2 rounded-full bg-[#FF6A00]" />
+                {counts.pre_alert} התרעות מוקדמות
               </div>
             )}
             {counts.after_alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-red-400/70">
-                <span className="h-2 w-2 rounded-full bg-red-400/50" />
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF2A2A]/70">
+                <span className="h-2 w-2 rounded-full bg-[#FF2A2A]/50" />
                 {counts.after_alert} להישאר בממ"ד
               </div>
             )}
             {counts.telegram_intel && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-sky-400">
-                <span className="h-2 w-2 rounded-full bg-sky-400" />
-                {counts.telegram_intel} מודיעין טלגרם
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#00E5FF]">
+                <span className="h-2 w-2 rounded-full bg-[#00E5FF]" />
+                {counts.telegram_intel} מודיעין
               </div>
             )}
           </div>
@@ -522,38 +522,38 @@ export default function IntelPanel({
           dir="rtl"
         >
           {counts.alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-red-400">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-red-400 status-dot-pulse" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF2A2A]">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF2A2A] status-dot-pulse" />
               {counts.alert} התרעות ירי רקטות וטילים
             </div>
           )}
           {counts.uav && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-purple-400">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-purple-400 status-dot-pulse" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#E040FB]">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#E040FB] status-dot-pulse" />
               {counts.uav} התרעות חדירת כלי טיס עוין
             </div>
           )}
           {counts.terrorist && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-red-800">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-red-800 status-dot-pulse" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF0055]">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF0055] status-dot-pulse" />
               {counts.terrorist} חדירת מחבלים
             </div>
           )}
           {counts.pre_alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-orange-400">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-orange-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF6A00]">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF6A00]" />
               {counts.pre_alert} התרעות מוקדמות
             </div>
           )}
           {counts.after_alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-red-400/70">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-red-400/50" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF2A2A]/70">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF2A2A]/50" />
               {counts.after_alert} להישאר בממ"ד
             </div>
           )}
           {counts.telegram_intel && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-sky-400">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-sky-400" />
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#00E5FF]">
+              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#00E5FF]" />
               {counts.telegram_intel} מודיעין
             </div>
           )}
