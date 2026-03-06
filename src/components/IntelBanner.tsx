@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import { toBlob } from "html-to-image";
 import { ActiveAlert } from "@/types";
 
 interface IntelPanelProps {
@@ -100,6 +101,9 @@ export default function IntelPanel({
   // ── Secret troll mode ──
   const [trollEnabled, setTrollEnabled] = useState(false);
   const [trollPlaying, setTrollPlaying] = useState(false);
+
+  // Screenshot logic
+  const [isCapturing, setIsCapturing] = useState(false);
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<NodeJS.Timeout | null>(null);
   const darkClickCount = useRef(0);
@@ -216,6 +220,58 @@ export default function IntelPanel({
     }
   };
 
+  const handleScreenshot = async () => {
+    setIsCapturing(true);
+    setShowAbout(false);
+    setIsOpen(false);
+    setShowLegend(false);
+
+    // Wait for React to apply the 'hidden' classes for UI elements
+    await new Promise(r => setTimeout(r, 200));
+
+    const mapRoot = document.getElementById('map-root') || document.body;
+
+    try {
+      // Calculate a perfect square based on the smallest dimension to ensure it fits the screen
+      const size = Math.min(mapRoot.offsetWidth, mapRoot.offsetHeight);
+      const xOffset = (mapRoot.offsetWidth - size) / 2;
+      const yOffset = (mapRoot.offsetHeight - size) / 2;
+
+      const blob = await toBlob(mapRoot, {
+        backgroundColor: theme === "dark" ? "#030712" : "#f3f4f6", // tailwind gray-950/100
+        width: size,
+        height: size,
+        canvasWidth: size,
+        canvasHeight: size,
+        style: {
+          transform: `translate(-${xOffset}px, -${yOffset}px)`,
+        }
+      });
+
+      if (!blob) throw new Error("Could not create image blob");
+
+      const file = new File([blob], 'clearmap-alerts.png', { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: "מפה שקופה",
+          text: "מצב התרעות ומודיעין נוכחי - מפה שקופה",
+          files: [file]
+        });
+      } else {
+        const link = document.createElement('a');
+        link.download = 'clearmap-alerts.png';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+      }
+    } catch (err) {
+      console.error("Screenshot error", err);
+      alert("אירעה שגיאה ביצירת התמונה.");
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
   return (
     <>
       {/* ─── Top bar: Logo + controls ─── */}
@@ -223,7 +279,7 @@ export default function IntelPanel({
         {/* Logo / About */}
         <button
           onClick={() => { handleLogoSecretTap(); setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); }}
-          className="liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+          className={`liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${isCapturing ? 'hidden' : ''}`}
         >
           <img
             src={theme === "dark" ? "/logo-dark-theme.png" : "/logo-light-theme.png"}
@@ -236,7 +292,7 @@ export default function IntelPanel({
         {hasAlerts && (
           <button
             onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); }}
-            className="relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
+            className={`relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isCapturing ? 'hidden' : ''}`}
             title="עדכונים"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
@@ -249,7 +305,7 @@ export default function IntelPanel({
         )}
 
         {/* Analytics */}
-        <Link href="/analytics">
+        <Link href="/analytics" className={isCapturing ? 'hidden' : ''}>
           <button
             className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
             title="סטטיסטיקות"
@@ -267,7 +323,7 @@ export default function IntelPanel({
         {/* Legend */}
         <button
           onClick={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); }}
-          className={`liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''}`}
+          className={`liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''} ${isCapturing ? 'hidden' : ''}`}
           title="מקרא"
         >
           <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
@@ -278,7 +334,7 @@ export default function IntelPanel({
         {/* Fullscreen */}
         <button
           onClick={onToggleFullscreen}
-          className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
+          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isCapturing ? 'hidden' : ''}`}
           title={isFullscreen ? "יציאה ממסך מלא" : "מסך מלא"}
         >
           {isFullscreen ? (
@@ -414,15 +470,32 @@ export default function IntelPanel({
               </button>
             </div>
 
-            <button
-              onClick={handleShare}
-              className="mt-2 flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30 active:scale-[0.98]"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-              </svg>
-              <span className="text-[13px] font-bold">שתף את המפה</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <button
+                onClick={handleShare}
+                className="flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30 active:scale-[0.98]"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+                </svg>
+                <span className="text-[12px] font-bold">שתף קישור</span>
+              </button>
+
+              <button
+                onClick={handleScreenshot}
+                disabled={isCapturing}
+                className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all border active:scale-[0.98] ${isCapturing
+                  ? "bg-purple-500/10 text-purple-400 border-purple-500/20 cursor-wait"
+                  : "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border-purple-500/30"
+                  }`}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                </svg>
+                <span className="text-[12px] font-bold">{isCapturing ? "מצלם..." : "צלם מפה"}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -500,7 +573,7 @@ export default function IntelPanel({
       )}
 
       {/* ─── Toast Notifications (New Alerts) ─── */}
-      <div className="absolute bottom-16 sm:bottom-20 right-3 left-3 flex flex-col items-center gap-2 pointer-events-none z-[1002]" dir="rtl">
+      <div className={`absolute bottom-16 sm:bottom-20 right-3 left-3 flex flex-col items-center gap-2 pointer-events-none z-[1002] ${isCapturing ? 'hidden' : ''}`} dir="rtl">
         {toasts.map((t) => {
           const config = STATUS_CONFIG[t.status] || STATUS_CONFIG.alert;
           return (
@@ -518,7 +591,7 @@ export default function IntelPanel({
       {/* ─── Bottom status bar (when panel is closed and there are alerts) ─── */}
       {!isOpen && hasAlerts && (
         <div
-          className="absolute bottom-4 right-3 left-3 z-[1000] flex flex-wrap items-center justify-center gap-2 sm:gap-3 liquid-glass rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 glass-overlay"
+          className={`absolute bottom-4 right-3 left-3 z-[1000] flex flex-wrap items-center justify-center gap-2 sm:gap-3 liquid-glass rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 glass-overlay ${isCapturing ? 'hidden' : ''}`}
           dir="rtl"
         >
           {counts.alert && (
@@ -557,6 +630,95 @@ export default function IntelPanel({
               {counts.telegram_intel} מודיעין
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Hidden overlay specifically tailored for explicit Screenshot Captures (html-to-image) ─── */}
+      {isCapturing && (
+        <div
+          className="absolute z-[2000] pointer-events-none flex flex-col justify-between p-6"
+          dir="rtl"
+          style={{
+            // Force this UI wrapper to be exactly the square size we are capturing,
+            // visually centered in the actual browser window during the snapshot cycle.
+            width: 'min(100vw, 100dvh)',
+            height: 'min(100vw, 100dvh)',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          {/* Top Row: Disclaimer & Logo */}
+          <div className="flex justify-between items-start w-full">
+            {/* UAV Disclaimer (Top Left) */}
+            {counts.uav ? (
+              <div className="bg-[#1e1e24]/90 rounded-xl px-4 py-3 border border-white/10 flex items-center gap-3 max-w-md shadow-2xl">
+                <span className="text-yellow-400 text-[16px] font-bold shrink-0">* שימו לב:</span>
+                <span className="text-white/90 text-[14px] leading-tight font-medium">
+                  מיקומי כלי הטיס הם בגדר השערת המערכת בלבד ואין להתבסס עליהם.
+                </span>
+              </div>
+            ) : (
+              <div />
+            )}
+
+            {/* Logo (Top Right) */}
+            <div className="shrink-0 ml-4">
+              <img
+                src={theme === "dark" ? "/logo-dark-theme.png" : "/logo-light-theme.png"}
+                alt="מפה שקופה"
+                className="h-24 w-auto object-contain drop-shadow-2xl"
+              />
+            </div>
+          </div>
+
+          {/* Bottom Row: Dynamic Legend (Bottom Left) */}
+          <div className="flex justify-end items-end w-full">
+            <div className="bg-[#1e1e24]/90 rounded-2xl p-6 border border-white/10 flex flex-col gap-4 min-w-[280px] shadow-2xl">
+              {counts.alert && (
+                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
+                  <span className="h-4 w-4 rounded-full bg-[#FF2A2A] shrink-0" />
+                  <span>{counts.alert}</span>
+                  <span>התרעות ירי רקטות וטילים</span>
+                </div>
+              )}
+              {counts.uav && (
+                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
+                  <span className="h-4 w-4 rounded-full bg-[#E040FB] shrink-0" />
+                  <span>{counts.uav}</span>
+                  <span>התרעות חדירת כלי טיס עוין</span>
+                </div>
+              )}
+              {counts.terrorist && (
+                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
+                  <span className="h-4 w-4 rounded-full bg-[#FF0055] shrink-0" />
+                  <span>{counts.terrorist}</span>
+                  <span>חדירת מחבלים</span>
+                </div>
+              )}
+              {counts.pre_alert && (
+                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
+                  <span className="h-4 w-4 rounded-full bg-[#FF6A00] shrink-0" />
+                  <span>{counts.pre_alert}</span>
+                  <span>התרעות מוקדמות</span>
+                </div>
+              )}
+              {counts.after_alert && (
+                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
+                  <span className="h-4 w-4 rounded-full bg-[#FF2A2A]/70 shrink-0" />
+                  <span>{counts.after_alert}</span>
+                  <span>להישאר בממ"ד</span>
+                </div>
+              )}
+              {counts.telegram_intel && (
+                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
+                  <span className="h-4 w-4 rounded-full bg-[#00E5FF] shrink-0" />
+                  <span>{counts.telegram_intel}</span>
+                  <span>מודיעין</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

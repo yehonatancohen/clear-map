@@ -199,7 +199,7 @@ export default function MapView() {
   }, []);
 
   return (
-    <div ref={containerRef} className={`relative h-[100dvh] w-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
+    <div id="map-root" ref={containerRef} className={`relative h-[100dvh] w-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
       <IntelPanel
         alerts={alerts}
         onToggleFullscreen={toggleFullscreen}
@@ -215,7 +215,7 @@ export default function MapView() {
         className="hide-labels"
       >
         <ZoomListener />
-        <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' />
+        <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
         {polygons && (
           <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
         )}
