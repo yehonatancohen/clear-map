@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { toBlob } from "html-to-image";
 import { ActiveAlert } from "@/types";
 
 interface IntelPanelProps {
@@ -220,58 +219,6 @@ export default function IntelPanel({
     }
   };
 
-  const handleScreenshot = async () => {
-    setIsCapturing(true);
-    setShowAbout(false);
-    setIsOpen(false);
-    setShowLegend(false);
-
-    // Wait for React to apply the 'hidden' classes for UI elements
-    await new Promise(r => setTimeout(r, 200));
-
-    const mapRoot = document.getElementById('map-root') || document.body;
-
-    try {
-      // Calculate a perfect square based on the smallest dimension to ensure it fits the screen
-      const size = Math.min(mapRoot.offsetWidth, mapRoot.offsetHeight);
-      const xOffset = (mapRoot.offsetWidth - size) / 2;
-      const yOffset = (mapRoot.offsetHeight - size) / 2;
-
-      const blob = await toBlob(mapRoot, {
-        backgroundColor: theme === "dark" ? "#030712" : "#f3f4f6", // tailwind gray-950/100
-        width: size,
-        height: size,
-        canvasWidth: size,
-        canvasHeight: size,
-        style: {
-          transform: `translate(-${xOffset}px, -${yOffset}px)`,
-        }
-      });
-
-      if (!blob) throw new Error("Could not create image blob");
-
-      const file = new File([blob], 'clearmap-alerts.png', { type: 'image/png' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: "מפה שקופה",
-          text: "מצב התרעות ומודיעין נוכחי - מפה שקופה",
-          files: [file]
-        });
-      } else {
-        const link = document.createElement('a');
-        link.download = 'clearmap-alerts.png';
-        link.href = URL.createObjectURL(blob);
-        link.click();
-      }
-    } catch (err) {
-      console.error("Screenshot error", err);
-      alert("אירעה שגיאה ביצירת התמונה.");
-    } finally {
-      setIsCapturing(false);
-    }
-  };
-
   return (
     <>
       {/* ─── Top bar: Logo + controls ─── */}
@@ -481,20 +428,17 @@ export default function IntelPanel({
                 <span className="text-[12px] font-bold">שתף קישור</span>
               </button>
 
-              <button
-                onClick={handleScreenshot}
-                disabled={isCapturing}
-                className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all border active:scale-[0.98] ${isCapturing
-                  ? "bg-purple-500/10 text-purple-400 border-purple-500/20 cursor-wait"
-                  : "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border-purple-500/30"
-                  }`}
+              <a
+                href="https://t.me/clearmapchannel"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-[#0088cc]/20 text-[#0088cc] hover:bg-[#0088cc]/30 border border-[#0088cc]/30 active:scale-[0.98]"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.11.03-1.84 1.18-5.2 3.45-.49.34-.94.5-1.35.49-.45-.01-1.3-.25-1.94-.46-.78-.26-1.4-.4-1.35-.85.03-.23.36-.47 1-.72 3.92-1.7 6.54-2.83 7.84-3.37 3.73-1.55 4.51-1.82 5.02-1.83.11 0 .36.03.5.14.11.08.14.2.15.28 0 .04.01.12.01.2z" />
                 </svg>
-                <span className="text-[12px] font-bold">{isCapturing ? "מצלם..." : "צלם מפה"}</span>
-              </button>
+                <span className="text-[12px] font-bold">ערוץ טלגרם</span>
+              </a>
             </div>
           </div>
         </div>
