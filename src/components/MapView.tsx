@@ -100,7 +100,7 @@ function AlertFitter({
     );
 
     map.fitBounds(bounds, {
-      padding: [60, 60],
+      padding: [30, 30],
       maxZoom: 12,
       animate: true,
       duration: 0.8,
