@@ -13,12 +13,6 @@ interface IntelPanelProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; bg: string }> = {
-  telegram_intel: {
-    label: "מודיעין",
-    color: "text-[#00E5FF]",
-    dot: "bg-[#00E5FF]",
-    bg: "border-[#00E5FF]/20",
-  },
   pre_alert: {
     label: "התרעות מוקדמות",
     color: "text-[#FF6A00]",
@@ -499,12 +493,7 @@ export default function IntelPanel({
                 {counts.after_alert} להישאר בממ"ד
               </div>
             )}
-            {counts.telegram_intel && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#00E5FF]">
-                <span className="h-2 w-2 rounded-full bg-[#00E5FF]" />
-                {counts.telegram_intel} מודיעין
-              </div>
-            )}
+
           </div>
 
           {/* Alert list */}
@@ -568,12 +557,7 @@ export default function IntelPanel({
               {counts.after_alert} להישאר בממ"ד
             </div>
           )}
-          {counts.telegram_intel && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#00E5FF]">
-              <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#00E5FF]" />
-              {counts.telegram_intel} מודיעין
-            </div>
-          )}
+
         </div>
       )}
 
@@ -654,13 +638,7 @@ export default function IntelPanel({
                   <span>להישאר בממ"ד</span>
                 </div>
               )}
-              {counts.telegram_intel && (
-                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
-                  <span className="h-4 w-4 rounded-full bg-[#00E5FF] shrink-0" />
-                  <span>{counts.telegram_intel}</span>
-                  <span>מודיעין</span>
-                </div>
-              )}
+
             </div>
           </div>
         </div>
