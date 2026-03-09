@@ -245,22 +245,6 @@ export default function IntelPanel({
           </button>
         )}
 
-        {/* Analytics */}
-        <Link href="/analytics" className={isCapturing ? 'hidden' : ''}>
-          <button
-            className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]"
-            title="סטטיסטיקות"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-              <path d="M3 3v18h18" />
-              <path d="M7 17V13" />
-              <path d="M11 17V9" />
-              <path d="M15 17V5" />
-              <path d="M19 17V11" />
-            </svg>
-          </button>
-        </Link>
-
         {/* Legend */}
         <button
           onClick={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); }}
@@ -315,13 +299,6 @@ export default function IntelPanel({
               <div>
                 <div className="text-[13px] font-bold text-white/90">התרעות מוקדמות</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">הנחיה מטעם צה"ל לשהות בסמיכות למרחב מוגן.</div>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#00E5FF]" />
-              <div>
-                <div className="text-[13px] font-bold text-white/90">מודיעין</div>
-                <div className="text-[11px] text-white/60 leading-tight mt-0.5">ניטור חכם של ערוצי טלגרם שמדווחים על שיגורים ברחבי המזרח התיכון, לעיתים לפני אזעקות. לא רשמי.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
