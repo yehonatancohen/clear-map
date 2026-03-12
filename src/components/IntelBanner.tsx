@@ -95,8 +95,6 @@ export default function IntelPanel({
   const [trollEnabled, setTrollEnabled] = useState(false);
   const [trollPlaying, setTrollPlaying] = useState(false);
 
-  // Screenshot logic
-  const [isCapturing, setIsCapturing] = useState(false);
   const logoClickCount = useRef(0);
   const logoClickTimer = useRef<NodeJS.Timeout | null>(null);
   const darkClickCount = useRef(0);
@@ -220,7 +218,7 @@ export default function IntelPanel({
         {/* Logo / About */}
         <button
           onClick={() => { handleLogoSecretTap(); setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); }}
-          className={`liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${isCapturing ? 'hidden' : ''}`}
+          className={`liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]`}
         >
           <img
             src={theme === "dark" ? "/logo-dark-theme.png" : "/logo-light-theme.png"}
@@ -233,7 +231,7 @@ export default function IntelPanel({
         {hasAlerts && (
           <button
             onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); }}
-            className={`relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isCapturing ? 'hidden' : ''}`}
+            className={`relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]`}
             title="עדכונים"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
@@ -248,7 +246,7 @@ export default function IntelPanel({
         {/* Legend */}
         <button
           onClick={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); }}
-          className={`liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''} ${isCapturing ? 'hidden' : ''}`}
+          className={`liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''}`}
           title="מקרא"
         >
           <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
@@ -259,7 +257,7 @@ export default function IntelPanel({
         {/* Fullscreen */}
         <button
           onClick={onToggleFullscreen}
-          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isCapturing ? 'hidden' : ''}`}
+          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]`}
           title={isFullscreen ? "יציאה ממסך מלא" : "מסך מלא"}
         >
           {isFullscreen ? (
@@ -483,7 +481,7 @@ export default function IntelPanel({
       )}
 
       {/* ─── Toast Notifications (New Alerts) ─── */}
-      <div className={`absolute bottom-16 sm:bottom-20 right-3 left-3 flex flex-col items-center gap-2 pointer-events-none z-[1002] ${isCapturing ? 'hidden' : ''}`} dir="rtl">
+      <div className={`absolute bottom-16 sm:bottom-20 right-3 left-3 flex flex-col items-center gap-2 pointer-events-none z-[1002]`} dir="rtl">
         {toasts.map((t) => {
           const config = STATUS_CONFIG[t.status] || STATUS_CONFIG.alert;
           return (
@@ -501,7 +499,7 @@ export default function IntelPanel({
       {/* ─── Bottom status bar (when panel is closed and there are alerts) ─── */}
       {!isOpen && hasAlerts && (
         <div
-          className={`absolute bottom-4 right-3 left-3 z-[1000] flex flex-wrap items-center justify-center gap-2 sm:gap-3 liquid-glass rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 glass-overlay ${isCapturing ? 'hidden' : ''}`}
+          className={`absolute bottom-4 right-3 left-3 z-[1000] flex flex-wrap items-center justify-center gap-2 sm:gap-3 liquid-glass rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 glass-overlay`}
           dir="rtl"
         >
           {counts.alert && (
@@ -535,89 +533,6 @@ export default function IntelPanel({
             </div>
           )}
 
-        </div>
-      )}
-
-      {/* ─── Hidden overlay specifically tailored for explicit Screenshot Captures (html-to-image) ─── */}
-      {isCapturing && (
-        <div
-          className="absolute z-[2000] pointer-events-none flex flex-col justify-between p-6"
-          dir="rtl"
-          style={{
-            // Force this UI wrapper to be exactly the square size we are capturing,
-            // visually centered in the actual browser window during the snapshot cycle.
-            width: 'min(100vw, 100dvh)',
-            height: 'min(100vw, 100dvh)',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        >
-          {/* Top Row: Disclaimer & Logo */}
-          <div className="flex justify-between items-start w-full">
-            {/* UAV Disclaimer (Top Left) */}
-            {counts.uav ? (
-              <div className="bg-[#1e1e24]/90 rounded-xl px-4 py-3 border border-white/10 flex items-center gap-3 max-w-md shadow-2xl">
-                <span className="text-yellow-400 text-[16px] font-bold shrink-0">* שימו לב:</span>
-                <span className="text-white/90 text-[14px] leading-tight font-medium">
-                  מיקומי כלי הטיס הם בגדר השערת המערכת בלבד ואין להתבסס עליהם.
-                </span>
-              </div>
-            ) : (
-              <div />
-            )}
-
-            {/* Logo (Top Right) */}
-            <div className="shrink-0 ml-4">
-              <img
-                src={theme === "dark" ? "/logo-dark-theme.png" : "/logo-light-theme.png"}
-                alt="מפה שקופה"
-                className="h-24 w-auto object-contain drop-shadow-2xl"
-              />
-            </div>
-          </div>
-
-          {/* Bottom Row: Dynamic Legend (Bottom Left) */}
-          <div className="flex justify-end items-end w-full">
-            <div className="bg-[#1e1e24]/90 rounded-2xl p-6 border border-white/10 flex flex-col gap-4 min-w-[280px] shadow-2xl">
-              {counts.alert && (
-                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
-                  <span className="h-4 w-4 rounded-full bg-[#FF2A2A] shrink-0" />
-                  <span>{counts.alert}</span>
-                  <span>התרעות ירי רקטות וטילים</span>
-                </div>
-              )}
-              {counts.uav && (
-                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
-                  <span className="h-4 w-4 rounded-full bg-[#E040FB] shrink-0" />
-                  <span>{counts.uav}</span>
-                  <span>התרעות חדירת כלי טיס עוין</span>
-                </div>
-              )}
-              {counts.terrorist && (
-                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
-                  <span className="h-4 w-4 rounded-full bg-[#FF0055] shrink-0" />
-                  <span>{counts.terrorist}</span>
-                  <span>חדירת מחבלים</span>
-                </div>
-              )}
-              {counts.pre_alert && (
-                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
-                  <span className="h-4 w-4 rounded-full bg-[#FF6A00] shrink-0" />
-                  <span>{counts.pre_alert}</span>
-                  <span>התרעות מוקדמות</span>
-                </div>
-              )}
-              {counts.after_alert && (
-                <div className="flex items-center gap-3 text-[18px] font-bold text-white">
-                  <span className="h-4 w-4 rounded-full bg-[#FF2A2A]/70 shrink-0" />
-                  <span>{counts.after_alert}</span>
-                  <span>להישאר בממ"ד</span>
-                </div>
-              )}
-
-            </div>
-          </div>
         </div>
       )}
 
