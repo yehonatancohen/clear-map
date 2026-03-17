@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 export interface NotificationSettings {
   enabled: boolean;
   earlyAlerts: boolean;
+  leaveShelterAlerts: boolean;
   allIsrael: boolean;
   currentLocation: boolean;
   selectedCities: string[];
@@ -13,10 +14,12 @@ export interface NotificationSettings {
 const DEFAULT_SETTINGS: NotificationSettings = {
   enabled: true,
   earlyAlerts: true,
+  leaveShelterAlerts: true,
   allIsrael: true,
   currentLocation: false,
   selectedCities: [],
 };
+
 
 export function useNotificationSettings() {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);

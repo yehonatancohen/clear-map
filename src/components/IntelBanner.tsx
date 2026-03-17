@@ -367,6 +367,29 @@ export default function IntelPanel({
               </div>
 
               <div className="space-y-4 flex-1 overflow-y-auto scrollbar-thin">
+                {/* Permission Warning */}
+                {permission === "denied" && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex gap-3 text-right">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-400 mt-0.5 flex-shrink-0">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <p className="text-[11px] text-red-300 font-medium leading-normal">
+                      ההתראות חסומות בדפדפן. כדי לקבל עדכונים, יש לאפשר אותן בהגדרות האתר (לחיצה על המנעול בשורת הכתובת).
+                    </p>
+                  </div>
+                )}
+
+                {permission === "default" && settings.enabled && (
+                  <button
+                    onClick={requestPermission}
+                    className="w-full bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-xl p-3 text-[12px] font-bold animate-pulse text-center"
+                  >
+                    לחץ כאן לאישור התראות בדפדפן
+                  </button>
+                )}
+
                 {/* Main Notification Toggle */}
                 <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
                   <div className="flex flex-col text-right">
@@ -374,16 +397,18 @@ export default function IntelPanel({
                     <span className="text-[10px] text-white/40 leading-tight">קבל התראות כשהאפליקציה פתוחה</span>
                   </div>
                   <button
-                    onClick={() => updateSettings({ enabled: !settings.enabled })}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.enabled ? 'bg-blue-600' : 'bg-white/10'}`}
+                    onClick={handleToggleMainNotifications}
+                    className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.enabled ? 'bg-blue-600' : 'bg-white/10'}`}
                     dir="ltr"
                   >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.enabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.enabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
 
                 {settings.enabled && (
                   <>
+                    <div className="h-px bg-white/10 my-1" />
+                    
                     {/* Early Alerts Toggle */}
                     <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
                       <div className="flex flex-col text-right">
@@ -392,14 +417,29 @@ export default function IntelPanel({
                       </div>
                       <button
                         onClick={() => updateSettings({ earlyAlerts: !settings.earlyAlerts })}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.earlyAlerts ? 'bg-[#FF6A00]' : 'bg-white/10'}`}
+                        className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.earlyAlerts ? 'bg-[#FF6A00]' : 'bg-white/10'}`}
                         dir="ltr"
                       >
-                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.earlyAlerts ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.earlyAlerts ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                       </button>
                     </div>
 
-                    <div className="h-px bg-white/10 my-2" />
+                    {/* End of Alert Toggle */}
+                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex flex-col text-right">
+                        <span className="text-[13px] font-bold text-green-400">חזרה לשגרה</span>
+                        <span className="text-[10px] text-white/40 leading-tight">התראה כשהזמן המוגדר בממ"ד עבר</span>
+                      </div>
+                      <button
+                        onClick={() => updateSettings({ leaveShelterAlerts: !settings.leaveShelterAlerts })}
+                        className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.leaveShelterAlerts ? 'bg-green-600' : 'bg-white/10'}`}
+                        dir="ltr"
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.leaveShelterAlerts ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+
+                    <div className="h-px bg-white/10 my-1" />
 
                     {/* Geolocation Toggle */}
                     <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
