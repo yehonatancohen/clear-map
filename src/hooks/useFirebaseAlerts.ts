@@ -40,11 +40,22 @@ export function useFirebaseAlerts(): ActiveAlert[] {
 
       // Basic Notification Logic: Check for new alerts
       if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-        const isEnabled = localStorage.getItem("notifications_enabled") !== "false"; // default true
+        const isEnabled = localStorage.getItem("notifications_enabled") !== "false"; 
+        const isEarlyEnabled = localStorage.getItem("early_notifications_enabled") !== "false";
         
         if (isEnabled) {
           const prevIds = new Set(prevAlertsRef.current.map(a => a.id));
-          const newAlerts = filtered.filter(a => !prevIds.has(a.id) && (a.status === "alert" || a.status === "uav" || a.status === "terrorist"));
+          const newAlerts = filtered.filter(a => {
+            if (prevIds.has(a.id)) return false;
+            
+            // Standard alerts
+            if (a.status === "alert" || a.status === "uav" || a.status === "terrorist") return true;
+            
+            // Early alerts (pre_alert) - only if enabled by user
+            if (a.status === "pre_alert") return isEarlyEnabled;
+            
+            return false;
+          });
           
           if (newAlerts.length > 0) {
             const citiesStr = newAlerts.map(a => a.city_name_he || a.city_name).join(", ");
@@ -55,6 +66,7 @@ export function useFirebaseAlerts(): ActiveAlert[] {
           }
         }
       }
+
 
 
       prevAlertsRef.current = filtered;

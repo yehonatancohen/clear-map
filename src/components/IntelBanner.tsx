@@ -94,10 +94,14 @@ export default function IntelPanel({
 
   // Notification settings
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [earlyNotificationsEnabled, setEarlyNotificationsEnabled] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem("notifications_enabled");
     if (stored !== null) setNotificationsEnabled(stored === "true");
+    
+    const storedEarly = localStorage.getItem("early_notifications_enabled");
+    if (storedEarly !== null) setEarlyNotificationsEnabled(storedEarly === "true");
   }, []);
 
   const toggleNotifications = () => {
@@ -109,6 +113,11 @@ export default function IntelPanel({
     }
   };
 
+  const toggleEarlyNotifications = () => {
+    const next = !earlyNotificationsEnabled;
+    setEarlyNotificationsEnabled(next);
+    localStorage.setItem("early_notifications_enabled", String(next));
+  };
 
   // ── Secret troll mode ──
   const [trollEnabled, setTrollEnabled] = useState(false);
@@ -234,10 +243,10 @@ export default function IntelPanel({
     <>
       {/* ─── Top bar: Logo + controls ─── */}
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-1.5 sm:gap-2 glass-overlay" dir="rtl">
-        {/* Logo / About */}
+        {/* Logo / About / Settings */}
         <button
-          onClick={() => { handleLogoSecretTap(); setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); }}
-          className={`liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]`}
+          onClick={() => { handleLogoSecretTap(); setShowAbout(!showAbout); setShowLegend(false); setIsOpen(false); setShowSettings(false); }}
+          className={`liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${showAbout ? 'bg-white/20' : ''}`}
         >
           <img
             src={theme === "dark" ? "/logo-dark-theme.png" : "/logo-light-theme.png"}
@@ -247,20 +256,20 @@ export default function IntelPanel({
         </button>
 
         {/* Intel toggle */}
-        {hasAlerts && (
-          <button
-            onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); }}
-            className={`relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]`}
-            title="עדכונים"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-              <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-            </svg>
+        <button
+          onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); setShowSettings(false); }}
+          className={`relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isOpen ? 'bg-white/20' : ''}`}
+          title="עדכונים"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={hasAlerts ? "text-white/70" : "text-white/30"}>
+            <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+          </svg>
+          {hasAlerts && (
             <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white shadow-md">
               {alerts.length}
             </span>
-          </button>
-        )}
+          )}
+        </button>
 
         {/* Legend */}
         <button
@@ -270,21 +279,6 @@ export default function IntelPanel({
         >
           <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
         </button>
-
-        {/* Settings */}
-        <button
-          onClick={() => { setShowSettings(!showSettings); setShowAbout(false); setShowLegend(false); setIsOpen(false); }}
-          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showSettings ? 'bg-white/20' : ''}`}
-          title="הגדרות"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.114-.94h1.086c.554 0 1.024.398 1.114.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.768.768a1.125 1.125 0 01.12 1.45l-.527.737a1.125 1.125 0 00.108 1.205c.166.396.506.71.93.78l.894.149c.542.09.94.56.94 1.114v1.086c0 .554-.398 1.024-.94 1.114l-.894.149a1.125 1.125 0 00-.93.78c-.164.398-.142.855.108 1.205l.527.738a1.125 1.125 0 01-.12 1.45l-.768.767a1.125 1.125 0 01-1.45.12l-.737-.527a1.125 1.125 0 00-1.205.108c-.396.166-.71.506-.78.93l-.149.894c-.09.542-.56.94-1.114.94h-1.086c-.554 0-1.024-.398-1.114-.94l-.149-.894a1.125 1.125 0 00-.78-.93c-.398-.164-.855-.142-1.205.108l-.738.527a1.125 1.125 0 01-1.45-.12l-.767-.768a1.125 1.125 0 01-.12-1.45l.527-.737a1.125 1.125 0 00-.108-1.205c-.166-.396-.506-.71-.93-.78l-.894-.149a1.125 1.125 0 01-.94-1.114v-1.086c0-.554.398-1.024.94-1.114l.894-.149c.424-.07.764-.384.93-.78.164-.398.142-.855-.108-1.205l-.527-.737a1.125 1.125 0 01.12-1.45l.768-.768a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.205.108.396-.166.71-.506.78-.93l.149-.894z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
-
-
-
 
         {/* Fullscreen */}
         <button
@@ -307,18 +301,18 @@ export default function IntelPanel({
       {/* ─── Legend mini-popup ─── */}
       {showLegend && (
         <div className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-md" dir="rtl">
-          <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">מקרא התרעות</h3>
+          <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2 text-right">מקרא התרעות</h3>
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-3">
               <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF2A2A] shadow-[0_0_8px_rgba(255,42,42,0.8)]" />
-              <div>
+              <div className="text-right">
                 <div className="text-[13px] font-bold text-white/90">התרעות ירי רקטות וטילים</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">ירי טילים ורקטות לפיקוד העורף. היכנסו למרחב המוגן.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#E040FB] shadow-[0_0_8px_rgba(224,64,251,0.8)]" />
-              <div>
+              <div className="text-right">
                 <div className="text-[13px] font-bold text-white/90">התרעות חדירת כלי טיס עוין</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5 mb-1">חדירת כלי טיס בלתי מאויש. יש להיכנס מיד למרחב המוגן.</div>
                 <div className="text-[10px] text-purple-300 leading-tight"> * המערכת מבצעת בזמן אמת הפיכת נתונים למסלול משוער, חוזה את כיוון הטיסה ומתריעה על מיקומים עתידיים פוטנציאליים טרם הגעת הכלי.</div>
@@ -326,21 +320,21 @@ export default function IntelPanel({
             </div>
             <div className="flex items-start gap-3">
               <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF6A00]" />
-              <div>
+              <div className="text-right">
                 <div className="text-[13px] font-bold text-white/90">התרעות מוקדמות</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">הנחיה מטעם צה"ל לשהות בסמיכות למרחב מוגן.</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF2A2A]/50" />
-              <div>
+              <div className="text-right">
                 <div className="text-[13px] font-bold text-white/90">להישאר בממ"ד</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">יש להישאר בממרחב המוגן עד 10 דקות מקבלת ההתרעה (או עד להודעה אחרת).</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF0055]" />
-              <div>
+              <div className="text-right">
                 <div className="text-[13px] font-bold text-white/90">חדירת מחבלים</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">חשש לאירוע בטחוני, היכנסו למבנה ונעלו דלתות.</div>
               </div>
@@ -349,197 +343,218 @@ export default function IntelPanel({
         </div>
       )}
 
-      {/* ─── Settings mini-popup ─── */}
-      {showSettings && (
-        <div className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-md" dir="rtl">
-          <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">הגדרות התראות</h3>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-[13px] font-bold text-white/90">התראות דפדפן</div>
-                <div className="text-[11px] text-white/60 leading-tight mt-0.5">הצגת התראות כשהאפליקציה פתוחה</div>
-              </div>
-              <button
-                onClick={toggleNotifications}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${notificationsEnabled ? 'bg-blue-600' : 'bg-white/10'}`}
-              >
-                <span
-                  className={`${notificationsEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-                />
-              </button>
-            </div>
-            {notificationsEnabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && (
-              <p className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-400/20">
-                ההתראות חסומות בהגדרות הדפדפן. יש לאפשר אותן ידנית כדי לקבל עדכונים.
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-
-      {/* ─── About mini-popup ─── */}
+      {/* ─── About & Settings Panel ─── */}
       {showAbout && (
         <div
-          className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-72 glass-overlay max-w-sm"
+          className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-sm"
           dir="rtl"
         >
           <div className="about-shimmer absolute inset-0 rounded-2xl pointer-events-none" />
-          <h3 className="text-base font-bold text-white/90 mb-1.5 flex items-center gap-2">
-            מפה שקופה
-            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.1</span>
-          </h3>
-          <div className="mb-4">
-            <p className="text-[12px] text-white/80 leading-relaxed mb-2">
-              מערכת התרעות ומודיעין מתקדמת בזמן אמת. המערכת משלבת דיווחי פיקוד העורף רשמיים עם מקורות מודיעין גלוי במטרה לספק את תמונת המצב המדויקת והמהירה ביותר.
-            </p>
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-medium text-white/50">
-                פותח באהבה על ידי <strong className="text-white">יהונתן כהן</strong><br />
-                <a href="mailto:yoncohenyon@gmail.com" className="hover:text-white transition-colors underline underline-offset-2">ליצור קשר</a>
-              </p>
-              <a
-                href="https://buymeacoffee.com/yehonatancohen"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[10px] font-bold bg-[#FFDD00] text-black px-2 py-1 rounded-md hover:bg-[#FFDD00]/90 transition-colors"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                  <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-                  <line x1="6" y1="1" x2="6" y2="4"></line>
-                  <line x1="10" y1="1" x2="10" y2="4"></line>
-                  <line x1="14" y1="1" x2="14" y2="4"></line>
-                </svg>
-                קפה?
-              </a>
-            </div>
-          </div>
+          
+          {showSettings ? (
+            <>
+              <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="p-1 hover:bg-white/10 rounded-lg text-white/70"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="rotate-180">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+                <h3 className="text-base font-bold text-white/90">הגדרות התראות</h3>
+              </div>
 
-          {/* Theme Toggle */}
-          <div className="flex flex-col gap-2 border-t border-white/10 pt-4">
-            <span className="text-[11px] font-bold text-white/50 uppercase tracking-wider">ערכת נושא</span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => onThemeChange("light")}
-                className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "light"
-                  ? "bg-white/20 text-white border border-white/20"
-                  : "bg-white/5 text-white/40 hover:bg-white/10"
-                  }`}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="5" />
-                  <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                </svg>
-                <span className="text-[12px] font-medium">בוקר</span>
-              </button>
-              <button
-                onClick={() => { onThemeChange("dark"); handleDarkSecretTap(); }}
-                className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "dark"
-                  ? "bg-white/20 text-white border border-white/20"
-                  : "bg-white/5 text-white/40 hover:bg-white/10"
-                  }`}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
-                <span className="text-[12px] font-medium">לילה</span>
-              </button>
-            </div>
+              <div className="space-y-3">
+                <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                  <div className="flex flex-col text-right">
+                    <span className="text-[13px] font-bold text-white">התראות דפדפן</span>
+                    <span className="text-[10px] text-white/40 leading-tight">קבל התראות כשהאפליקציה פתוחה</span>
+                  </div>
+                  <button
+                    onClick={toggleNotifications}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${notificationsEnabled ? 'bg-blue-600' : 'bg-white/10'}`}
+                    dir="ltr"
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${notificationsEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
 
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <button
-                onClick={handleShare}
-                className="flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30 active:scale-[0.98]"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
-                </svg>
-                <span className="text-[12px] font-bold">שתף קישור</span>
-              </button>
+                <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                  <div className="flex flex-col text-right">
+                    <span className="text-[13px] font-bold text-[#FF6A00]">התראות מוקדמות</span>
+                    <span className="text-[10px] text-white/40 leading-tight">הנחיות שהייה בסמוך למרחב מוגן</span>
+                  </div>
+                  <button
+                    onClick={toggleEarlyNotifications}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${earlyNotificationsEnabled ? 'bg-[#FF6A00]' : 'bg-white/10'}`}
+                    dir="ltr"
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${earlyNotificationsEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
 
-              <a
-                href="https://t.me/clearmapchannel"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-[#0088cc]/20 text-[#0088cc] hover:bg-[#0088cc]/30 border border-[#0088cc]/30 active:scale-[0.98]"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.11.03-1.84 1.18-5.2 3.45-.49.34-.94.5-1.35.49-.45-.01-1.3-.25-1.94-.46-.78-.26-1.4-.4-1.35-.85.03-.23.36-.47 1-.72 3.92-1.7 6.54-2.83 7.84-3.37 3.73-1.55 4.51-1.82 5.02-1.83.11 0 .36.03.5.14.11.08.14.2.15.28 0 .04.01.12.01.2z" />
-                </svg>
-                <span className="text-[12px] font-bold">ערוץ טלגרם</span>
-              </a>
-            </div>
-          </div>
+                {notificationsEnabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 flex gap-2">
+                    <p className="text-[10px] text-red-300 leading-tight text-right">
+                      ההתראות חסומות בדפדפן. יש לאפשר אותן בהגדרות האתר.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-base font-bold text-white/90 mb-1.5 flex items-center gap-2 text-right">
+                מפה שקופה
+                <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.1</span>
+              </h3>
+              <div className="mb-4 text-right">
+                <p className="text-[12px] text-white/80 leading-relaxed mb-2">
+                  מערכת התרעות ומודיעין מתקדמת בזמן אמת. המערכת משלבת דיווחי פיקוד העורף רשמיים עם מקורות מודיעין גלוי במטרה לספק את תמונת המצב המדויקת והמהירה ביותר.
+                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-medium text-white/50 text-right">
+                    פותח באהבה על ידי <strong className="text-white">יהונתן כהן</strong><br />
+                    <a href="mailto:yoncohenyon@gmail.com" className="hover:text-white transition-colors underline underline-offset-2">ליצור קשר</a>
+                  </p>
+                  <a
+                    href="https://buymeacoffee.com/yehonatancohen"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-[10px] font-bold bg-[#FFDD00] text-black px-2 py-1 rounded-md hover:bg-[#FFDD00]/90 transition-colors"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                      <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                      <line x1="6" y1="1" x2="6" y2="4"></line>
+                      <line x1="10" y1="1" x2="10" y2="4"></line>
+                      <line x1="14" y1="1" x2="14" y2="4"></line>
+                    </svg>
+                    קפה?
+                  </a>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-white/10 pt-4">
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 transition-all border border-white/5"
+                >
+                  <div className="flex items-center gap-3">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10.343 3.94c.09-.542.56-.94 1.114-.94h1.086c.554 0 1.024.398 1.114.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.768.768a1.125 1.125 0 01.12 1.45l-.527.737a1.125 1.125 0 00.108 1.205c.166.396.506.71.93.78l.894.149c.542.09.94.56.94 1.114v1.086c0 .554-.398 1.024-.94 1.114l-.894.149a1.125 1.125 0 00-.93.78c-.164.398-.142.855.108 1.205l.527.738a1.125 1.125 0 01-.12 1.45l-.768.767a1.125 1.125 0 01-1.45.12l-.737-.527a1.125 1.125 0 00-1.205.108c-.396.166-.71.506-.78.93l-.149.894c-.09.542-.56.94-1.114.94h-1.086c-.554 0-1.024-.398-1.114-.94l-.149-.894a1.125 1.125 0 00-.78-.93c-.398-.164-.855-.142-1.205.108l-.738.527a1.125 1.125 0 01-1.45-.12l-.767-.768a1.125 1.125 0 01-.12-1.45l.527-.737a1.125 1.125 0 00-.108-1.205c-.166-.396-.506-.71-.93-.78l-.894-.149a1.125 1.125 0 01-.94-1.114v-1.086c0-.554.398-1.024.94-1.114l.894-.149c.424-.07.764-.384.93-.78.164-.398.142-.855-.108-1.205l-.527-.737a1.125 1.125 0 01.12-1.45l.768-.768a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.205.108.396-.166.71-.506.78-.93l.149-.894z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span className="text-[13px] font-bold">הגדרות התראות</span>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-30">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onThemeChange("light")}
+                    className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "light"
+                      ? "bg-white/20 text-white border border-white/20"
+                      : "bg-white/5 text-white/40 hover:bg-white/10"
+                      }`}
+                  >
+                    <span className="text-[12px] font-medium">בוקר</span>
+                  </button>
+                  <button
+                    onClick={() => { onThemeChange("dark"); handleDarkSecretTap(); }}
+                    className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "dark"
+                      ? "bg-white/20 text-white border border-white/20"
+                      : "bg-white/5 text-white/40 hover:bg-white/10"
+                      }`}
+                  >
+                    <span className="text-[12px] font-medium">לילה</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleShare}
+                    className="flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border border-blue-500/30 active:scale-[0.98]"
+                  >
+                    <span className="text-[12px] font-bold">שתף</span>
+                  </button>
+
+                  <a
+                    href="https://t.me/clearmapchannel"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 rounded-xl py-2.5 transition-all bg-[#0088cc]/20 text-[#0088cc] hover:bg-[#0088cc]/30 border border-[#0088cc]/30 active:scale-[0.98]"
+                  >
+                    <span className="text-[12px] font-bold">טלגרם</span>
+                  </a>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* ─── Sidebar panel ─── */}
-      {isOpen && hasAlerts && (
+      {/* ─── Sidebar panel (Updates List) ─── */}
+      {isOpen && (
         <div
-          className="intel-panel absolute top-14 sm:top-16 bottom-4 right-3 left-3 sm:left-auto z-[1000] flex sm:w-72 flex-col liquid-glass rounded-2xl overflow-hidden glass-overlay"
+          className="intel-panel absolute top-14 sm:top-16 bottom-4 right-3 left-3 sm:left-auto z-[1000] flex sm:w-80 flex-col liquid-glass rounded-2xl overflow-hidden glass-overlay"
           dir="rtl"
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
             <div className="flex items-center gap-2">
-              <h2 className="text-[14px] font-bold text-white">עדכונים</h2>
+              <h2 className="text-[14px] font-bold text-white text-right">עדכונים</h2>
               <span className="text-[11px] text-white/50 font-medium">{alerts.length}</span>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="flex h-6 w-6 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-white/10 text-white/40"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           </div>
 
-          {/* Status summary bar */}
           <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5">
             {counts.alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF2A2A]">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF2A2A] text-right">
                 <span className="h-2 w-2 rounded-full bg-[#FF2A2A] status-dot-pulse" />
-                {counts.alert} התרעות טילים
+                {counts.alert} טילים
               </div>
             )}
             {counts.uav && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#E040FB]">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#E040FB] text-right">
                 <span className="h-2 w-2 rounded-full bg-[#E040FB] status-dot-pulse" />
-                {counts.uav} התרעות כלי טיס
-              </div>
-            )}
-            {counts.terrorist && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF0055]">
-                <span className="h-2 w-2 rounded-full bg-[#FF0055] status-dot-pulse" />
-                {counts.terrorist} חדירת מחבלים
+                {counts.uav} כטב"ם
               </div>
             )}
             {counts.pre_alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF6A00]">
+              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF6A00] text-right">
                 <span className="h-2 w-2 rounded-full bg-[#FF6A00]" />
-                {counts.pre_alert} התרעות מוקדמות
+                {counts.pre_alert} מוקדם
               </div>
             )}
-            {counts.after_alert && (
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#FF2A2A]/70">
-                <span className="h-2 w-2 rounded-full bg-[#FF2A2A]/50" />
-                {counts.after_alert} להישאר בממ"ד
-              </div>
-            )}
-
           </div>
 
-          {/* Alert list */}
           <div className="scrollbar-thin flex-1 space-y-2 overflow-y-auto px-3 py-3">
-            {sorted.map((alert) => (
-              <AlertItem key={alert.id} alert={alert} />
-            ))}
+            {hasAlerts ? (
+              sorted.map((alert) => (
+                <AlertItem key={alert.id} alert={alert} />
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-6 opacity-20">
+                <h3 className="text-white text-[14px] font-bold mb-1">אין התרעות פעילות</h3>
+                <p className="text-white text-[12px]">כאן יופיעו עדכונים בזמן אמת</p>
+              </div>
+            )}
           </div>
         </div>
       )}
+
 
       {/* ─── Toast Notifications (New Alerts) ─── */}
       <div className={`absolute bottom-16 sm:bottom-20 right-3 left-3 flex flex-col items-center gap-2 pointer-events-none z-[1002]`} dir="rtl">
@@ -548,7 +563,7 @@ export default function IntelPanel({
           return (
             <div key={t.toastId} className={`toast-enter flex items-center gap-3 px-4 py-2.5 rounded-xl liquid-glass border ${config.bg} shadow-xl pointer-events-auto`}>
               <span className={`h-2.5 w-2.5 rounded-full ${config.dot} status-dot-pulse`} />
-              <div className="flex flex-col">
+              <div className="flex flex-col text-right">
                 <span className={`font-bold text-[11px] ${config.color} leading-none mb-1 opacity-90`}>{config.label}</span>
                 <span className="font-bold text-[14px] text-white leading-none tracking-tight">{t.city_name_he}</span>
               </div>
@@ -564,31 +579,31 @@ export default function IntelPanel({
           dir="rtl"
         >
           {counts.alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF2A2A]">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF2A2A] text-right">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF2A2A] status-dot-pulse" />
               {counts.alert} התרעות ירי רקטות וטילים
             </div>
           )}
           {counts.uav && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#E040FB]">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#E040FB] text-right">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#E040FB] status-dot-pulse" />
               {counts.uav} התרעות חדירת כלי טיס עוין
             </div>
           )}
           {counts.terrorist && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF0055]">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF0055] text-right">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF0055] status-dot-pulse" />
               {counts.terrorist} חדירת מחבלים
             </div>
           )}
           {counts.pre_alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF6A00]">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF6A00] text-right">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF6A00]" />
               {counts.pre_alert} התרעות מוקדמות
             </div>
           )}
           {counts.after_alert && (
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF2A2A]/70">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-[12px] font-bold text-[#FF2A2A]/70 text-right">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-[#FF2A2A]/50" />
               {counts.after_alert} להישאר בממ"ד
             </div>
@@ -609,7 +624,7 @@ export default function IntelPanel({
               </svg>
             </div>
 
-            <div className="flex-1">
+            <div className="flex-1 text-right">
               <h2 className="text-[14px] sm:text-[15px] font-bold text-white tracking-tight mb-1">
                 אזהרת שימוש במערכת
               </h2>
