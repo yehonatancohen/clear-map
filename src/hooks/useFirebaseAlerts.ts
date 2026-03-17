@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ref, onValue } from "firebase/database";
 import { rtdb } from "@/lib/firebase";
 import { ActiveAlert } from "@/types";
@@ -9,6 +9,14 @@ import { ActiveAlert } from "@/types";
  */
 export function useFirebaseAlerts(): ActiveAlert[] {
   const [alerts, setAlerts] = useState<ActiveAlert[]>([]);
+  const prevAlertsRef = useRef<ActiveAlert[]>([]);
+
+  useEffect(() => {
+    // Request notification permission for basic PWA notifications
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     const alertsRef = ref(rtdb, "public_state/active_alerts");
@@ -17,6 +25,7 @@ export function useFirebaseAlerts(): ActiveAlert[] {
       const data = snapshot.val();
       if (!data) {
         setAlerts([]);
+        prevAlertsRef.current = [];
         return;
       }
 
@@ -29,6 +38,21 @@ export function useFirebaseAlerts(): ActiveAlert[] {
         return true;
       });
 
+      // Basic Notification Logic: Check for new alerts
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        const prevIds = new Set(prevAlertsRef.current.map(a => a.id));
+        const newAlerts = filtered.filter(a => !prevIds.has(a.id) && (a.status === "alert" || a.status === "uav" || a.status === "terrorist"));
+        
+        if (newAlerts.length > 0) {
+          const citiesStr = newAlerts.map(a => a.city_name_he || a.city_name).join(", ");
+          new Notification("צבע אדום!", {
+            body: citiesStr,
+            icon: "/favicon.svg",
+          });
+        }
+      }
+
+      prevAlertsRef.current = filtered;
       setAlerts(filtered);
     });
 
@@ -37,3 +61,4 @@ export function useFirebaseAlerts(): ActiveAlert[] {
 
   return alerts;
 }
+
