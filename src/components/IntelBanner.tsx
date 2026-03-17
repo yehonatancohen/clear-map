@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { ActiveAlert } from "@/types";
+import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 
 interface IntelPanelProps {
   alerts: ActiveAlert[];
@@ -92,32 +93,35 @@ export default function IntelPanel({
   const prevAlertIdsRef = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
   const toastIdCounter = useRef(0);
 
-  // Notification settings
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [earlyNotificationsEnabled, setEarlyNotificationsEnabled] = useState(true);
+  const { settings, updateSettings, toggleCity, userCoords, permission, requestPermission } = useNotificationSettings();
+  const [cityList, setCityList] = useState<string[]>([]);
+  const [citySearch, setCitySearch] = useState("");
+
+  const handleToggleMainNotifications = async () => {
+    const next = !settings.enabled;
+    if (next && permission === "default") {
+      const result = await requestPermission();
+      if (result !== "granted") {
+        updateSettings({ enabled: false });
+        return;
+      }
+    }
+    updateSettings({ enabled: next });
+  };
 
   useEffect(() => {
-    const stored = localStorage.getItem("notifications_enabled");
-    if (stored !== null) setNotificationsEnabled(stored === "true");
-    
-    const storedEarly = localStorage.getItem("early_notifications_enabled");
-    if (storedEarly !== null) setEarlyNotificationsEnabled(storedEarly === "true");
+    fetch("/data/polygons.json")
+      .then(res => res.json())
+      .then(data => setCityList(Object.keys(data).sort()))
+      .catch(err => console.error("Failed to load cities", err));
   }, []);
 
-  const toggleNotifications = () => {
-    const next = !notificationsEnabled;
-    setNotificationsEnabled(next);
-    localStorage.setItem("notifications_enabled", String(next));
-    if (next && typeof window !== "undefined" && "Notification" in window) {
-      Notification.requestPermission();
-    }
-  };
-
-  const toggleEarlyNotifications = () => {
-    const next = !earlyNotificationsEnabled;
-    setEarlyNotificationsEnabled(next);
-    localStorage.setItem("early_notifications_enabled", String(next));
-  };
+  const filteredCityOptions = useMemo(() => {
+    if (citySearch.length < 2) return [];
+    return cityList
+      .filter(city => city.includes(citySearch) && !settings.selectedCities.includes(city))
+      .slice(0, 10);
+  }, [cityList, citySearch, settings.selectedCities]);
 
   // ── Secret troll mode ──
   const [trollEnabled, setTrollEnabled] = useState(false);
@@ -208,7 +212,6 @@ export default function IntelPanel({
     }
   }, [alerts]);
 
-  // Group alerts by status for the summary counts
   const counts = alerts.reduce(
     (acc, a) => {
       acc[a.status] = (acc[a.status] || 0) + 1;
@@ -218,8 +221,6 @@ export default function IntelPanel({
   );
 
   const hasAlerts = alerts.length > 0;
-
-  // Sort: always newest first
   const sorted = [...alerts].sort((a, b) => b.timestamp - a.timestamp);
 
   const handleShare = async () => {
@@ -346,14 +347,14 @@ export default function IntelPanel({
       {/* ─── About & Settings Panel ─── */}
       {showAbout && (
         <div
-          className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-sm"
+          className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-96 glass-overlay max-w-sm max-h-[85vh] overflow-y-auto flex flex-col"
           dir="rtl"
         >
           <div className="about-shimmer absolute inset-0 rounded-2xl pointer-events-none" />
           
           {showSettings ? (
-            <>
-              <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2">
+            <div className="flex flex-col flex-1">
+              <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2 flex-shrink-0">
                 <button 
                   onClick={() => setShowSettings(false)}
                   className="p-1 hover:bg-white/10 rounded-lg text-white/70"
@@ -365,51 +366,141 @@ export default function IntelPanel({
                 <h3 className="text-base font-bold text-white/90">הגדרות התראות</h3>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4 flex-1 overflow-y-auto scrollbar-thin">
+                {/* Main Notification Toggle */}
                 <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
                   <div className="flex flex-col text-right">
                     <span className="text-[13px] font-bold text-white">התראות דפדפן</span>
                     <span className="text-[10px] text-white/40 leading-tight">קבל התראות כשהאפליקציה פתוחה</span>
                   </div>
                   <button
-                    onClick={toggleNotifications}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${notificationsEnabled ? 'bg-blue-600' : 'bg-white/10'}`}
+                    onClick={() => updateSettings({ enabled: !settings.enabled })}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.enabled ? 'bg-blue-600' : 'bg-white/10'}`}
                     dir="ltr"
                   >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${notificationsEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.enabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
                   </button>
                 </div>
 
-                <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
-                  <div className="flex flex-col text-right">
-                    <span className="text-[13px] font-bold text-[#FF6A00]">התראות מוקדמות</span>
-                    <span className="text-[10px] text-white/40 leading-tight">הנחיות שהייה בסמוך למרחב מוגן</span>
-                  </div>
-                  <button
-                    onClick={toggleEarlyNotifications}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${earlyNotificationsEnabled ? 'bg-[#FF6A00]' : 'bg-white/10'}`}
-                    dir="ltr"
-                  >
-                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${earlyNotificationsEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                  </button>
-                </div>
+                {settings.enabled && (
+                  <>
+                    {/* Early Alerts Toggle */}
+                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex flex-col text-right">
+                        <span className="text-[13px] font-bold text-[#FF6A00]">התראות מוקדמות</span>
+                        <span className="text-[10px] text-white/40 leading-tight">הנחיות שהייה בסמוך למרחב מוגן</span>
+                      </div>
+                      <button
+                        onClick={() => updateSettings({ earlyAlerts: !settings.earlyAlerts })}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.earlyAlerts ? 'bg-[#FF6A00]' : 'bg-white/10'}`}
+                        dir="ltr"
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.earlyAlerts ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
 
-                {notificationsEnabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 flex gap-2">
+                    <div className="h-px bg-white/10 my-2" />
+
+                    {/* Geolocation Toggle */}
+                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex flex-col text-right">
+                        <span className="text-[13px] font-bold text-white">מיקום נוכחי</span>
+                        <span className="text-[10px] text-white/40 leading-tight">קבל התראות לפי המיקום שלך כעת</span>
+                      </div>
+                      <button
+                        onClick={() => updateSettings({ currentLocation: !settings.currentLocation })}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.currentLocation ? 'bg-green-600' : 'bg-white/10'}`}
+                        dir="ltr"
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.currentLocation ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+
+                    {/* All Israel vs Filtered */}
+                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex flex-col text-right">
+                        <span className="text-[13px] font-bold text-white">כל הארץ</span>
+                        <span className="text-[10px] text-white/40 leading-tight">קבל התראות מכל רחבי המדינה</span>
+                      </div>
+                      <button
+                        onClick={() => updateSettings({ allIsrael: !settings.allIsrael })}
+                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.allIsrael ? 'bg-purple-600' : 'bg-white/10'}`}
+                        dir="ltr"
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.allIsrael ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+
+                    {/* City Selection (shown if All Israel is OFF) */}
+                    {!settings.allIsrael && (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                        <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">אזורי עניין</div>
+                        
+                        {/* Search Input */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="חיפוש עיר/יישוב..."
+                            value={citySearch}
+                            onChange={(e) => setCitySearch(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-white/30"
+                          />
+                          {filteredCityOptions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 z-[10] mt-1 bg-[#1a1c23] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                              {filteredCityOptions.map(city => (
+                                <button
+                                  key={city}
+                                  onClick={() => { toggleCity(city); setCitySearch(""); }}
+                                  className="w-full text-right px-3 py-2 text-[12px] text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0"
+                                >
+                                  {city}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Selected Cities List */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {settings.selectedCities.length === 0 && !settings.currentLocation && (
+                            <p className="text-[10px] text-white/30 italic pr-1">לא נבחרו אזורים. הוסף עיר או אפשר מיקום.</p>
+                          )}
+                          {settings.selectedCities.map(city => (
+                            <div key={city} className="flex items-center gap-1.5 bg-white/10 border border-white/10 rounded-full pl-1.5 pr-2.5 py-1 transition-all">
+                              <span className="text-[11px] font-bold text-white/90">{city}</span>
+                              <button 
+                                onClick={() => toggleCity(city)}
+                                className="text-white/40 hover:text-white/90"
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                  <line x1="18" y1="6" x2="6" y2="18" />
+                                  <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {settings.enabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && (
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 flex gap-2">
                     <p className="text-[10px] text-red-300 leading-tight text-right">
-                      ההתראות חסומות בדפדפן. יש לאפשר אותן בהגדרות האתר.
+                      ההתראות חסומות בדפדפן. יש לאפשר אותן בהגדרות האתר (לחץ על המנעול בשורת הכתובת).
                     </p>
                   </div>
                 )}
               </div>
-            </>
+            </div>
           ) : (
-            <>
-              <h3 className="text-base font-bold text-white/90 mb-1.5 flex items-center gap-2 text-right">
+            <div className="flex flex-col flex-1">
+              <h3 className="text-base font-bold text-white/90 mb-1.5 flex items-center gap-2 text-right flex-shrink-0">
                 מפה שקופה
-                <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.1</span>
+                <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.2</span>
               </h3>
-              <div className="mb-4 text-right">
+              <div className="mb-4 text-right overflow-y-auto scrollbar-thin">
                 <p className="text-[12px] text-white/80 leading-relaxed mb-2">
                   מערכת התרעות ומודיעין מתקדמת בזמן אמת. המערכת משלבת דיווחי פיקוד העורף רשמיים עם מקורות מודיעין גלוי במטרה לספק את תמונת המצב המדויקת והמהירה ביותר.
                 </p>
@@ -424,22 +515,15 @@ export default function IntelPanel({
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-[10px] font-bold bg-[#FFDD00] text-black px-2 py-1 rounded-md hover:bg-[#FFDD00]/90 transition-colors"
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                      <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-                      <line x1="6" y1="1" x2="6" y2="4"></line>
-                      <line x1="10" y1="1" x2="10" y2="4"></line>
-                      <line x1="14" y1="1" x2="14" y2="4"></line>
-                    </svg>
                     קפה?
                   </a>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-white/10 pt-4">
+              <div className="flex flex-col gap-3 border-t border-white/10 pt-4 flex-shrink-0">
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 transition-all border border-white/5"
+                  className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white transition-all border border-white/10 shadow-lg active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-3">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -492,7 +576,7 @@ export default function IntelPanel({
                   </a>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       )}
