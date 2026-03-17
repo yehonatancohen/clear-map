@@ -86,10 +86,29 @@ export default function IntelPanel({
   const [isOpen, setIsOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [toasts, setToasts] = useState<(ActiveAlert & { toastId: number })[]>([]);
   const prevAlertIdsRef = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
   const toastIdCounter = useRef(0);
+
+  // Notification settings
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("notifications_enabled");
+    if (stored !== null) setNotificationsEnabled(stored === "true");
+  }, []);
+
+  const toggleNotifications = () => {
+    const next = !notificationsEnabled;
+    setNotificationsEnabled(next);
+    localStorage.setItem("notifications_enabled", String(next));
+    if (next && typeof window !== "undefined" && "Notification" in window) {
+      Notification.requestPermission();
+    }
+  };
+
 
   // ── Secret troll mode ──
   const [trollEnabled, setTrollEnabled] = useState(false);
@@ -245,12 +264,25 @@ export default function IntelPanel({
 
         {/* Legend */}
         <button
-          onClick={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); }}
+          onClick={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); setShowSettings(false); }}
           className={`liquid-glass rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showLegend ? 'bg-white/20' : ''}`}
           title="מקרא"
         >
           <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
         </button>
+
+        {/* Settings */}
+        <button
+          onClick={() => { setShowSettings(!showSettings); setShowAbout(false); setShowLegend(false); setIsOpen(false); }}
+          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${showSettings ? 'bg-white/20' : ''}`}
+          title="הגדרות"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.114-.94h1.086c.554 0 1.024.398 1.114.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.768.768a1.125 1.125 0 01.12 1.45l-.527.737a1.125 1.125 0 00.108 1.205c.166.396.506.71.93.78l.894.149c.542.09.94.56.94 1.114v1.086c0 .554-.398 1.024-.94 1.114l-.894.149a1.125 1.125 0 00-.93.78c-.164.398-.142.855.108 1.205l.527.738a1.125 1.125 0 01-.12 1.45l-.768.767a1.125 1.125 0 01-1.45.12l-.737-.527a1.125 1.125 0 00-1.205.108c-.396.166-.71.506-.78.93l-.149.894c-.09.542-.56.94-1.114.94h-1.086c-.554 0-1.024-.398-1.114-.94l-.149-.894a1.125 1.125 0 00-.78-.93c-.398-.164-.855-.142-1.205.108l-.738.527a1.125 1.125 0 01-1.45-.12l-.767-.768a1.125 1.125 0 01-.12-1.45l.527-.737a1.125 1.125 0 00-.108-1.205c-.166-.396-.506-.71-.93-.78l-.894-.149a1.125 1.125 0 01-.94-1.114v-1.086c0-.554.398-1.024.94-1.114l.894-.149c.424-.07.764-.384.93-.78.164-.398.142-.855-.108-1.205l-.527-.737a1.125 1.125 0 01.12-1.45l.768-.768a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.205.108.396-.166.71-.506.78-.93l.149-.894z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </button>
+
 
 
 
@@ -303,7 +335,7 @@ export default function IntelPanel({
               <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF2A2A]/50" />
               <div>
                 <div className="text-[13px] font-bold text-white/90">להישאר בממ"ד</div>
-                <div className="text-[11px] text-white/60 leading-tight mt-0.5">יש להישאר במרחב המוגן עד 10 דקות מקבלת ההתרעה (או עד להודעה אחרת).</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5">יש להישאר בממרחב המוגן עד 10 דקות מקבלת ההתרעה (או עד להודעה אחרת).</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -316,6 +348,35 @@ export default function IntelPanel({
           </div>
         </div>
       )}
+
+      {/* ─── Settings mini-popup ─── */}
+      {showSettings && (
+        <div className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-md" dir="rtl">
+          <h3 className="text-sm font-bold text-white/90 mb-3 border-b border-white/10 pb-2">הגדרות התראות</h3>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[13px] font-bold text-white/90">התראות דפדפן</div>
+                <div className="text-[11px] text-white/60 leading-tight mt-0.5">הצגת התראות כשהאפליקציה פתוחה</div>
+              </div>
+              <button
+                onClick={toggleNotifications}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${notificationsEnabled ? 'bg-blue-600' : 'bg-white/10'}`}
+              >
+                <span
+                  className={`${notificationsEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                />
+              </button>
+            </div>
+            {notificationsEnabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && (
+              <p className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-400/20">
+                ההתראות חסומות בהגדרות הדפדפן. יש לאפשר אותן ידנית כדי לקבל עדכונים.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* ─── About mini-popup ─── */}
       {showAbout && (

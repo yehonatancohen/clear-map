@@ -9,10 +9,16 @@
     "orientation": "portrait",
     "icons": [
         {
+            "src": "/og-image-wa.jpg",
+            "sizes": "600x600",
+            "type": "image/jpeg",
+            "purpose": "any maskable"
+        },
+        {
             "src": "/favicon.svg",
             "sizes": "any",
             "type": "image/svg+xml",
-            "purpose": "any maskable"
+            "purpose": "any"
         }
     ]
 }

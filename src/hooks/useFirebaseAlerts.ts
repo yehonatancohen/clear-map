@@ -40,17 +40,22 @@ export function useFirebaseAlerts(): ActiveAlert[] {
 
       // Basic Notification Logic: Check for new alerts
       if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-        const prevIds = new Set(prevAlertsRef.current.map(a => a.id));
-        const newAlerts = filtered.filter(a => !prevIds.has(a.id) && (a.status === "alert" || a.status === "uav" || a.status === "terrorist"));
+        const isEnabled = localStorage.getItem("notifications_enabled") !== "false"; // default true
         
-        if (newAlerts.length > 0) {
-          const citiesStr = newAlerts.map(a => a.city_name_he || a.city_name).join(", ");
-          new Notification("צבע אדום!", {
-            body: citiesStr,
-            icon: "/favicon.svg",
-          });
+        if (isEnabled) {
+          const prevIds = new Set(prevAlertsRef.current.map(a => a.id));
+          const newAlerts = filtered.filter(a => !prevIds.has(a.id) && (a.status === "alert" || a.status === "uav" || a.status === "terrorist"));
+          
+          if (newAlerts.length > 0) {
+            const citiesStr = newAlerts.map(a => a.city_name_he || a.city_name).join(", ");
+            new Notification("צבע אדום!", {
+              body: citiesStr,
+              icon: "/favicon.svg",
+            });
+          }
         }
       }
+
 
       prevAlertsRef.current = filtered;
       setAlerts(filtered);
