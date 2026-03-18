@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { ActiveAlert } from "@/types";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
+import { generateShareImage, buildShareText } from "@/utils/generateShareImage";
 
 interface IntelPanelProps {
   alerts: ActiveAlert[];
@@ -94,8 +96,10 @@ export default function IntelPanel({
   const toastIdCounter = useRef(0);
 
   const { settings, updateSettings, toggleCity, userCoords, permission, requestPermission } = useNotificationSettings();
+  usePushSubscription(settings.enabled);
   const [cityList, setCityList] = useState<string[]>([]);
   const [citySearch, setCitySearch] = useState("");
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const handleToggleMainNotifications = async () => {
     const next = !settings.enabled;
@@ -224,19 +228,42 @@ export default function IntelPanel({
   const sorted = [...alerts].sort((a, b) => b.timestamp - a.timestamp);
 
   const handleShare = async () => {
-    const url = window.location.origin;
-    const title = "מפה שקופה - מערכת התרעות ומודיעין";
-    const text = "הצטרפו כדי לצפות בהתרעות ובמודיעין בזמן אמת.";
+    setIsCapturing(true);
+    // Close panels so they don't appear in screenshot
+    const panelsWereOpen = { about: showAbout, legend: showLegend, intel: isOpen, settings: showSettings };
+    setShowAbout(false);
+    setShowLegend(false);
+    setIsOpen(false);
+    setShowSettings(false);
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-      } catch (err) {
-        console.log("Error sharing", err);
+    try {
+      // Wait for panels to close
+      await new Promise((r) => setTimeout(r, 350));
+
+      const blob = await generateShareImage(alerts);
+      const file = new File([blob], "clearmap-status.png", { type: "image/png" });
+      const text = buildShareText(alerts);
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], text });
+      } else {
+        // Fallback: download image + copy text
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "clearmap-status.png";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        await navigator.clipboard.writeText(text);
       }
-    } else {
-      navigator.clipboard.writeText(url);
-      alert("הקישור הועתק ללוח!");
+    } catch (err) {
+      console.error("Share failed:", err);
+    } finally {
+      // Restore panels
+      if (panelsWereOpen.about) setShowAbout(true);
+      if (panelsWereOpen.legend) setShowLegend(true);
+      if (panelsWereOpen.intel) setIsOpen(true);
+      if (panelsWereOpen.settings) setShowSettings(true);
+      setIsCapturing(false);
     }
   };
 
@@ -279,6 +306,24 @@ export default function IntelPanel({
           title="מקרא"
         >
           <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
+        </button>
+
+        {/* Share */}
+        <button
+          onClick={handleShare}
+          disabled={isCapturing}
+          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isCapturing ? "opacity-50 pointer-events-none" : ""}`}
+          title="שתף מצב נוכחי"
+        >
+          {isCapturing ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70 animate-spin">
+              <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+              <path d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0-12.814a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0 12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+            </svg>
+          )}
         </button>
 
         {/* Fullscreen */}
@@ -394,7 +439,7 @@ export default function IntelPanel({
                 <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
                   <div className="flex flex-col text-right">
                     <span className="text-[13px] font-bold text-white">התראות דפדפן</span>
-                    <span className="text-[10px] text-white/40 leading-tight">קבל התראות כשהאפליקציה פתוחה</span>
+                    <span className="text-[10px] text-white/40 leading-tight">קבל התראות גם כשהאפליקציה סגורה</span>
                   </div>
                   <button
                     onClick={handleToggleMainNotifications}

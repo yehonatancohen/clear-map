@@ -13,6 +13,7 @@ import LiveIndicator from "./LiveIndicator";
 import { PwaInstallBanner } from "./PwaInstallBanner";
 import UavFlightPath from "./UavFlightPath";
 import { useUavTracks } from "@/hooks/useUavTracks";
+import { setMapInstance } from "@/lib/mapRef";
 import { ActiveAlert, UavTrack } from "@/types";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
@@ -33,6 +34,14 @@ function ZoomListener() {
       }
     },
   });
+  return null;
+}
+
+function MapRefSetter() {
+  const map = useMap();
+  useEffect(() => {
+    setMapInstance(map);
+  }, [map]);
   return null;
 }
 
@@ -216,6 +225,7 @@ export default function MapView() {
         className="hide-labels"
       >
         <ZoomListener />
+        <MapRefSetter />
         <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
         {polygons && (
           <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
