@@ -10,6 +10,7 @@ import { usePolygons } from "@/hooks/usePolygons";
 import { useMergedPolygons, MergedPolygon } from "@/hooks/useMergedPolygons";
 import IntelPanel from "./IntelBanner";
 import LiveIndicator from "./LiveIndicator";
+import { PwaInstallBanner } from "./PwaInstallBanner";
 import UavFlightPath from "./UavFlightPath";
 import { useUavTracks } from "@/hooks/useUavTracks";
 import { ActiveAlert, UavTrack } from "@/types";
@@ -206,6 +207,7 @@ export default function MapView() {
         onThemeChange={setTheme}
       />
       <LiveIndicator />
+      <PwaInstallBanner />
       <MapContainer
         center={ISRAEL_CENTER}
         zoom={DEFAULT_ZOOM}
