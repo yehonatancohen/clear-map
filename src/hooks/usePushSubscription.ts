@@ -66,9 +66,23 @@ export function usePushSubscription(notificationsEnabled: boolean) {
       const existing = await registration.pushManager.getSubscription();
 
       if (existing) {
-        subscriptionRef.current = existing;
-        await storeSubscription(existing);
-        return;
+        // If VAPID key changed, unsubscribe old and re-subscribe with new key
+        const existingKey = existing.options?.applicationServerKey;
+        const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+        const keysMatch =
+          existingKey &&
+          currentKey.length === new Uint8Array(existingKey).length &&
+          currentKey.every((v, i) => v === new Uint8Array(existingKey)[i]);
+
+        if (keysMatch) {
+          subscriptionRef.current = existing;
+          await storeSubscription(existing);
+          return;
+        }
+
+        // Key mismatch — unsubscribe old subscription
+        await removeSubscription(existing.endpoint);
+        await existing.unsubscribe();
       }
 
       // Only attempt subscribe if notification permission is already granted
