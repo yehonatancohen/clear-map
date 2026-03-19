@@ -18,6 +18,7 @@ export function useFirebaseAlerts(): ActiveAlert[] {
   const [alerts, setAlerts] = useState<ActiveAlert[]>([]);
   const prevAlertsRef = useRef<ActiveAlert[]>([]);
   const activeUserAlertsRef = useRef<Map<string, ActiveAlert>>(new Map());
+  const isFirstLoadRef = useRef(true);
   const { settings, userCoords } = useNotificationSettings();
   const [polygons, setPolygons] = useState<any>(null);
   const [cityRegions, setCityRegions] = useState<Record<string, string>>({});
@@ -68,6 +69,17 @@ export function useFirebaseAlerts(): ActiveAlert[] {
       });
 
       const currentFilteredIds = new Set(filtered.map((a) => a.id));
+
+      // On first load, seed refs without sending notifications (prevents spam on app open)
+      if (isFirstLoadRef.current) {
+        isFirstLoadRef.current = false;
+        for (const a of filtered) {
+          activeUserAlertsRef.current.set(a.id, a);
+        }
+        prevAlertsRef.current = filtered;
+        setAlerts(filtered);
+        return;
+      }
 
       // 1. Check for alerts that ENDED — batch the "return to routine" notification
       if (settings.enabled && settings.leaveShelterAlerts) {
