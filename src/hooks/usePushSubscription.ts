@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { ref, set, remove } from "firebase/database";
-import { rtdb } from "@/lib/firebase";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -31,25 +29,34 @@ async function storeSubscription(subscription: PushSubscription) {
   try {
     const key = hashEndpoint(subscription.endpoint);
     const data = subscription.toJSON();
-    await set(ref(rtdb, `push_subscriptions/${key}`), {
-      endpoint: data.endpoint,
-      keys: data.keys,
-      created_at: Date.now(),
+
+    const res = await fetch("/api/push-subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, endpoint: data.endpoint, keys: data.keys }),
     });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("[Push] Subscription storage failed:", res.status, errorText);
+    } else {
+      console.log("[Push] Subscription stored successfully");
+    }
   } catch (err) {
-    // Firebase RTDB rules may deny this write — that's OK,
-    // push still works locally, just won't get server-side pushes
-    // until the user updates Firebase rules.
-    console.warn("Could not store push subscription in Firebase (check RTDB rules):", err);
+    console.error("[Push] Could not store subscription:", err);
   }
 }
 
 async function removeSubscription(endpoint: string) {
   try {
     const key = hashEndpoint(endpoint);
-    await remove(ref(rtdb, `push_subscriptions/${key}`));
+    await fetch("/api/push-subscribe", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
   } catch {
-    // Ignore — might already be gone or rules deny it
+    // Ignore — might already be gone
   }
 }
 
@@ -57,7 +64,16 @@ export function usePushSubscription(notificationsEnabled: boolean) {
   const subscriptionRef = useRef<PushSubscription | null>(null);
 
   const subscribe = useCallback(async () => {
-    if (!VAPID_PUBLIC_KEY || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (!VAPID_PUBLIC_KEY) {
+      console.warn("[Push] No VAPID_PUBLIC_KEY — push disabled");
+      return;
+    }
+    if (!("serviceWorker" in navigator)) {
+      console.warn("[Push] No service worker support");
+      return;
+    }
+    if (!("PushManager" in window)) {
+      console.warn("[Push] No PushManager — not an installed PWA or unsupported browser");
       return;
     }
 
@@ -81,24 +97,31 @@ export function usePushSubscription(notificationsEnabled: boolean) {
         }
 
         // Key mismatch — unsubscribe old subscription
-        await removeSubscription(existing.endpoint);
-        await existing.unsubscribe();
+        console.log("[Push] VAPID key changed, re-subscribing...");
+        try {
+          await existing.unsubscribe();
+        } catch (err) {
+          console.warn("[Push] Old unsubscribe failed (continuing):", err);
+        }
       }
 
       // Only attempt subscribe if notification permission is already granted
       if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+        console.warn("[Push] Notification permission not granted:", Notification.permission);
         return;
       }
 
+      console.log("[Push] Creating new push subscription...");
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       });
 
+      console.log("[Push] Subscription created, storing...");
       subscriptionRef.current = subscription;
       await storeSubscription(subscription);
     } catch (err) {
-      console.warn("Push subscription failed:", err);
+      console.error("[Push] Subscription failed:", err);
     }
   }, []);
 
@@ -111,7 +134,7 @@ export function usePushSubscription(notificationsEnabled: boolean) {
         subscriptionRef.current = null;
       }
     } catch (err) {
-      console.warn("Push unsubscribe failed:", err);
+      console.warn("[Push] Unsubscribe failed:", err);
     }
   }, []);
 
