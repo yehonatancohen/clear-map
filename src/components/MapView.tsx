@@ -18,7 +18,7 @@ import { ActiveAlert, UavTrack } from "@/types";
 import type { MapMode } from "./TimelineModeToggle";
 import TimelinePolygons from "./TimelinePolygons";
 import HistoryPanel from "./HistoryPanel";
-import { useHistoryAlerts, HistoryRange } from "@/hooks/useTimelineHistory";
+import { useHistoryAlerts, HistoryRange, SortedAlert } from "@/hooks/useTimelineHistory";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
@@ -54,42 +54,20 @@ function AlertFitter({
   polygons,
   uavTracks,
 }: {
-  alerts: ActiveAlert[];
+  alerts: ActiveAlert[] | SortedAlert[];
   polygons: Record<string, { polygon: [number, number][] }>;
-  uavTracks: UavTrack[];
+  uavTracks?: UavTrack[];
 }) {
   const map = useMap();
-  const prevCountRef = useRef(0);
-  const prevIdsRef = useRef<Set<string>>(new Set());
-  const prevTrackIdsRef = useRef<Set<string>>(new Set());
+  const prevIdsRef = useRef<string>("");
 
   useEffect(() => {
-    if (alerts.length === 0 && uavTracks.length === 0) {
-      prevCountRef.current = 0;
-      prevIdsRef.current = new Set();
-      prevTrackIdsRef.current = new Set();
-      return;
-    }
+    if (alerts.length === 0 && (!uavTracks || uavTracks.length === 0)) return;
 
-    const currentIds = new Set(alerts.map((a) => a.city_name_he));
-    const currentTrackIds = new Set(uavTracks.map((t) => t.track_id));
-
-    // Check if there are genuinely NEW alerts or tracks
-    const hasNewAlert = alerts.some((a) => !prevIdsRef.current.has(a.city_name_he));
-    const hasNewTrack = uavTracks.some((t) => !prevTrackIdsRef.current.has(t.track_id));
-
+    const currentIds = alerts.map((a) => a.city_name_he).sort().join(",");
+    if (currentIds === prevIdsRef.current) return;
     prevIdsRef.current = currentIds;
-    prevTrackIdsRef.current = currentTrackIds;
 
-    const totalCount = alerts.length + uavTracks.length;
-
-    if (!hasNewAlert && !hasNewTrack && prevCountRef.current > 0) {
-      prevCountRef.current = totalCount;
-      return;
-    }
-    prevCountRef.current = totalCount;
-
-    // Collect all coordinates from all alerted polygons
     const allCoords: [number, number][] = [];
     for (const alert of alerts) {
       const poly = polygons[alert.city_name_he];
@@ -98,24 +76,22 @@ function AlertFitter({
       }
     }
 
-    // Collect all coordinates from UAV current locations and predictions
-    for (const track of uavTracks) {
-      if (track.observed && track.observed.length > 0) {
-        allCoords.push(track.observed[track.observed.length - 1]);
-      }
-      if (track.predicted && track.predicted.length > 0) {
-        allCoords.push(...track.predicted);
+    if (uavTracks) {
+      for (const track of uavTracks) {
+        if (track.observed && track.observed.length > 0) {
+          allCoords.push(track.observed[track.observed.length - 1]);
+        }
+        if (track.predicted && track.predicted.length > 0) {
+          allCoords.push(...track.predicted);
+        }
       }
     }
 
     if (allCoords.length === 0) return;
 
-    const bounds = L.latLngBounds(
-      allCoords.map(([lat, lng]) => L.latLng(lat, lng))
-    );
-
+    const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => L.latLng(lat, lng)));
     map.fitBounds(bounds, {
-      padding: [30, 30],
+      padding: [50, 50],
       maxZoom: 12,
       animate: true,
       duration: 0.8,
@@ -166,18 +142,15 @@ export default function MapView() {
   const [mode, setMode] = useState<MapMode>("live");
   const [historyRange, setHistoryRange] = useState<HistoryRange>(1);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
-  const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<import("@/hooks/useTimelineHistory").SortedAlert[]>([]);
+  const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<SortedAlert[]>([]);
 
-  // History data (only fetches when in history mode)
   const history = useHistoryAlerts(historyRange, mode === "history");
 
-  // Clear selection when range changes
   useEffect(() => {
     setSelectedBatchId(null);
     setSelectedBatchAlerts([]);
   }, [historyRange]);
 
-  // Track newly appeared alerts for blink animation
   const [newAlertIds, setNewAlertIds] = useState<Set<string>>(new Set());
   const prevAlertIdsRef = useRef<Set<string>>(new Set());
 
@@ -216,7 +189,6 @@ export default function MapView() {
     }
   }, []);
 
-  // Sync fullscreen state with actual browser state
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", handler);
@@ -246,6 +218,7 @@ export default function MapView() {
         <ZoomListener />
         <MapRefSetter />
         <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
+        
         {mode === "live" && (
           <>
             {polygons && (
@@ -266,8 +239,12 @@ export default function MapView() {
             <UavFlightPath tracks={uavTracks} theme={theme} />
           </>
         )}
+
         {mode === "history" && selectedBatchAlerts.length > 0 && (
-          <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
+          <>
+            <AlertFitter alerts={selectedBatchAlerts} polygons={polygons} />
+            <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
+          </>
         )}
       </MapContainer>
       {mode === "history" && (
