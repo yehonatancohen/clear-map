@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
 import { useFirebaseAlerts } from "@/hooks/useFirebaseAlerts";
-import { usePolygons } from "@/hooks/usePolygons";
+import { usePolygons, PolygonLookup } from "@/hooks/usePolygons";
 import { useMergedPolygons, MergedPolygon } from "@/hooks/useMergedPolygons";
 import IntelPanel from "./IntelBanner";
 import LiveIndicator from "./LiveIndicator";
@@ -53,24 +53,30 @@ function AlertFitter({
   alerts,
   polygons,
   uavTracks,
+  isHistory = false,
 }: {
   alerts: ActiveAlert[] | SortedAlert[];
-  polygons: Record<string, { polygon: [number, number][] }>;
+  polygons: PolygonLookup | null;
   uavTracks?: UavTrack[];
+  isHistory?: boolean;
 }) {
   const map = useMap();
   const prevIdsRef = useRef<string>("");
 
   useEffect(() => {
+    if (!polygons) return;
     if (alerts.length === 0 && (!uavTracks || uavTracks.length === 0)) return;
 
-    const currentIds = alerts.map((a) => a.city_name_he).sort().join(",");
+    // ActiveAlert uses city_name_he, SortedAlert uses data
+    const cityNames = alerts.map((a) => ("city_name_he" in a ? a.city_name_he : a.data));
+    const currentIds = cityNames.sort().join(",");
+    
     if (currentIds === prevIdsRef.current) return;
     prevIdsRef.current = currentIds;
 
     const allCoords: [number, number][] = [];
-    for (const alert of alerts) {
-      const poly = polygons[alert.city_name_he];
+    for (const cityName of cityNames) {
+      const poly = polygons[cityName];
       if (poly?.polygon && Array.isArray(poly.polygon)) {
         allCoords.push(...poly.polygon);
       }
@@ -90,13 +96,20 @@ function AlertFitter({
     if (allCoords.length === 0) return;
 
     const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => L.latLng(lat, lng)));
+    
+    // On mobile, history panel takes bottom 50% of screen
+    const isMobile = window.innerWidth < 640;
+    const paddingBottom = (isMobile && isHistory) ? (window.innerHeight * 0.5) + 40 : 50;
+    const paddingTop = isMobile ? 80 : 50;
+
     map.fitBounds(bounds, {
-      padding: [50, 50],
+      paddingTopLeft: [20, paddingTop],
+      paddingBottomRight: [20, paddingBottom],
       maxZoom: 12,
       animate: true,
       duration: 0.8,
     });
-  }, [alerts, polygons, uavTracks, map]);
+  }, [alerts, polygons, uavTracks, isHistory, map]);
 
   return null;
 }
@@ -221,9 +234,7 @@ export default function MapView() {
         
         {mode === "live" && (
           <>
-            {polygons && (
-              <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
-            )}
+            <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
             {mergedPolygons.map((mp) => {
               const hasNewCity = mp.city_names_he.some((name) =>
                 newAlertIds.has(`alert_${name}`),
@@ -242,7 +253,7 @@ export default function MapView() {
 
         {mode === "history" && selectedBatchAlerts.length > 0 && (
           <>
-            <AlertFitter alerts={selectedBatchAlerts} polygons={polygons} />
+            <AlertFitter alerts={selectedBatchAlerts} polygons={polygons} isHistory />
             <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
           </>
         )}
