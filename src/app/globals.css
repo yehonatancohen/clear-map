@@ -272,3 +272,58 @@ body {
 .leaflet-interactive.timeline-polygon-appear {
   animation: timeline-polygon-fade 0.3s ease-out;
 }
+
+/* ── City Labels ── */
+.city-label-container {
+  border: none !important;
+  background: none !important;
+  pointer-events: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.city-label {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+  text-shadow: 
+    -1.5px -1.5px 0 #000,  
+     1.5px -1.5px 0 #000,
+    -1.5px  1.5px 0 #000,
+     1.5px  1.5px 0 #000,
+     0 0 4px rgba(0,0,0,0.8);
+  color: rgba(255, 255, 255, 0.75);
+  text-align: center;
+  width: max-content;
+  pointer-events: none;
+  transition: all 0.2s ease-out;
+  /* Use flex centering inside the Leaflet icon div which is 0x0 */
+  position: absolute;
+  transform: translate(-50%, -50%);
+  left: 0;
+  top: 0;
+}
+
+.city-label.size-large {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 
+    -2px -2px 0 #000,  
+     2px -2px 0 #000,
+    -2px  2px 0 #000,
+     2px  2px 0 #000,
+     0 0 5px rgba(0,0,0,0.9);
+}
+
+.city-label.light {
+  color: rgba(0, 0, 0, 0.7);
+  text-shadow: 
+    -1.5px -1.5px 0 #fff,  
+     1.5px -1.5px 0 #fff,
+    -1.5px  1.5px 0 #fff,
+     1.5px  1.5px 0 #fff,
+     0 0 3px rgba(255,255,255,0.6);
+}
+

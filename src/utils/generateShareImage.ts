@@ -1,5 +1,6 @@
 import { ActiveAlert } from "@/types";
 import { getMapInstance } from "@/lib/mapRef";
+import { CITY_RANKINGS, getLabelHierarchy } from "@/components/CityLabels";
 
 const STATUS_META: Record<string, { emoji: string; label: string; color: string; fill: string }> = {
   pre_alert: { emoji: "\uD83D\uDFE0", label: "התרעות מוקדמות", color: "#FF6A00", fill: "rgba(255,106,0,0.5)" },
@@ -51,11 +52,14 @@ async function captureMapCenteredOnAlerts(
         allCoords.push(...poly.polygon);
       }
     }
-    if (allCoords.length > 0) {
+    if (allCoords.length === 0) {
+        // Fallback if no polygons
+        map.setView([32.0, 34.8], 8);
+    } else {
       const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => L.latLng(lat, lng)));
       map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12, animate: false });
-      await waitForTiles(map);
     }
+    await waitForTiles(map);
   }
 
   const rect = container.getBoundingClientRect();
@@ -79,6 +83,7 @@ async function captureMapCenteredOnAlerts(
   }
 
   if (map && polygonsData) {
+    // 1. Draw Alert Polygons
     for (const a of alerts) {
       const poly = polygonsData[a.city_name_he];
       if (!poly?.polygon || poly.polygon.length < 3) continue;
@@ -93,6 +98,68 @@ async function captureMapCenteredOnAlerts(
       ctx.strokeStyle = meta.color;
       ctx.lineWidth = 2;
       ctx.stroke();
+    }
+
+    // 2. Draw City Labels (Manual Canvas Rendering)
+    const zoom = map.getZoom();
+    const maxTier = getLabelHierarchy(zoom);
+    const sortedCities = Object.entries(polygonsData)
+        .map(([name, entry]) => {
+            const cityName = name.includes(" - ") ? name.split(" - ")[0].trim() : name;
+            return {
+                name,
+                rawName: name,
+                parentName: cityName,
+                polygon: entry.polygon,
+                tier: CITY_RANKINGS[cityName === "תל אביב" ? "תל אביב - יפו" : cityName] ?? 4
+            };
+        })
+        .filter(c => c.tier <= maxTier)
+        .sort((a, b) => a.tier - b.tier);
+
+    const occupiedRects: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 12px Rubik, sans-serif";
+
+    for (const city of sortedCities) {
+        if (!city.polygon || city.polygon.length === 0) continue;
+        
+        let latSum = 0, lngSum = 0;
+        for (const p of city.polygon) { latSum += p[0]; lngSum += p[1]; }
+        const centroid = L.latLng(latSum / city.polygon.length, lngSum / city.polygon.length);
+        const point = map.latLngToContainerPoint(centroid);
+
+        if (point.x < 0 || point.y < 0 || point.x > rect.width || point.y > rect.height) continue;
+
+        const text = city.rawName.includes(" - ") && zoom < 11.5 ? city.parentName : city.rawName;
+        const textWidth = ctx.measureText(text).width + 12;
+        const textHeight = 20;
+
+        const r = {
+            x1: point.x - textWidth / 2,
+            y1: point.y - textHeight / 2,
+            x2: point.x + textWidth / 2,
+            y2: point.y + textHeight / 2
+        };
+
+        const padding = zoom >= 11 ? 4 : 18;
+        const collides = occupiedRects.some(o => 
+            r.x1 - padding < o.x2 && r.x2 + padding > o.x1 &&
+            r.y1 - padding < o.y2 && r.y2 + padding > o.y1
+        );
+
+        if (!collides) {
+            // Draw text halo
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 3;
+            ctx.strokeText(text, point.x, point.y);
+            
+            // Draw main text
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.fillText(text, point.x, point.y);
+            occupiedRects.push(r);
+        }
     }
   }
 

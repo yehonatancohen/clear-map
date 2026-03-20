@@ -19,25 +19,21 @@ import type { MapMode } from "./TimelineModeToggle";
 import TimelinePolygons from "./TimelinePolygons";
 import HistoryPanel from "./HistoryPanel";
 import { useHistoryAlerts, SortedAlert } from "@/hooks/useTimelineHistory";
+import CityLabels from "./CityLabels";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
 const THEMES = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  dark: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
+  light: "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+};
+
+const LABELS = {
+  dark: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png",
+  light: "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
 };
 
 function ZoomListener() {
-  const map = useMapEvents({
-    zoomend() {
-      const el = map.getContainer();
-      if (map.getZoom() < 10) {
-        el.classList.add("hide-labels");
-      } else {
-        el.classList.remove("hide-labels");
-      }
-    },
-  });
   return null;
 }
 
@@ -225,7 +221,6 @@ export default function MapView() {
         zoom={DEFAULT_ZOOM}
         zoomControl={false}
         style={{ height: "100%", width: "100%" }}
-        className="hide-labels"
       >
         <ZoomListener />
         <MapRefSetter />
@@ -256,6 +251,8 @@ export default function MapView() {
             <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
           </>
         )}
+
+        <CityLabels polygons={polygons} theme={theme} />
       </MapContainer>
       {mode === "history" && (
         <HistoryPanel
