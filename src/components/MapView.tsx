@@ -214,7 +214,7 @@ export default function MapView() {
         mode={mode}
         onModeChange={setMode}
       />
-      <LiveIndicator />
+      <LiveIndicator mode={mode} />
       <PwaInstallBanner />
       <MapContainer
         center={ISRAEL_CENTER}

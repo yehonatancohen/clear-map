@@ -9,17 +9,17 @@ import type { ActiveAlert } from "@/types";
 
 // Unified color scheme: pre alert -> orange, alert -> red, leave shelter -> emerald green, uav -> purple
 const HISTORY_COLORS: Record<string, { stroke: string; fill: string }> = {
-  alert:      { stroke: "#FF2A2A", fill: "#FF2A2A" },     // red — active alert
-  pre_alert:  { stroke: "#FFA500", fill: "#FFA500" },     // orange — early warnings
-  uav:        { stroke: "#E040FB", fill: "#E040FB" },     // purple — UAV
-  terrorist:  { stroke: "#FF0055", fill: "#FF0055" },     // magenta — terrorists
-  clear:      { stroke: "#10B981", fill: "#10B981" },     // green — leave shelter confirmation
+  alert: { stroke: "#FF2A2A", fill: "#FF2A2A" },     // red — active alert
+  pre_alert: { stroke: "#FF6A00", fill: "#FF6A00" },     // orange — early warnings
+  uav: { stroke: "#E040FB", fill: "#E040FB" },     // purple — UAV
+  terrorist: { stroke: "#FF0055", fill: "#FF0055" },     // magenta — terrorists
+  clear: { stroke: "#10b943ff", fill: "#10b943ff" },     // green — leave shelter confirmation
 };
 
 function getStatus(alert: OrefHistoryAlert & { status?: string }): string {
   if (alert.status === "clear") return "clear";
   if (alert.status === "pre_alert") return "pre_alert";
-  
+
   switch (alert.category) {
     case 1: return "alert";
     case 2: return "uav";

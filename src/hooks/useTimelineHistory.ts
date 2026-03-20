@@ -21,7 +21,6 @@ interface FirebaseHistoryEntry {
   timestamp: number;
 }
 
-// TzevaAdom nested format (for fallback)
 interface TzevaAdomBatch {
     id: number;
     alerts: {
@@ -59,31 +58,6 @@ function threatToCategory(threat: number): { category: number; desc: string } {
   }
 }
 
-function convertFirebaseEntry(id: string, entry: FirebaseHistoryEntry): AlertBatch {
-  const { status, cities, timestamp } = entry;
-  const cfg = CATEGORY_MAP[status] || CATEGORY_MAP["alert"];
-  const dateObj = new Date(timestamp);
-  const dateStr = dateObj.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, ".");
-  
-  const alerts: SortedAlert[] = cities.map(city => ({
-    data: city,
-    date: dateStr,
-    time: dateObj.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-    alertDate: dateObj.toISOString(),
-    category: typeof cfg.category === 'number' ? cfg.category : 1,
-    status: status,
-    category_desc: cfg.desc,
-    matrix_id: 0,
-    rid: 0,
-    _ts: timestamp,
-  }));
-
-  const byCategory = new Map<number | string, string[]>();
-  byCategory.set(cfg.category, cities);
-
-  return { id: `fb_${id}`, startTs: timestamp, endTs: timestamp, alerts, byCategory };
-}
-
 export function useHistoryAlerts(enabled = true) {
   const [batches, setBatches] = useState<AlertBatch[]>([]);
   const [fbBatches, setFbBatches] = useState<AlertBatch[]>([]);
@@ -98,78 +72,91 @@ export function useHistoryAlerts(enabled = true) {
     const unsubscribe = onValue(historyRef, (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
-      setFbBatches(Object.entries(data)
-        .map(([id, entry]) => convertFirebaseEntry(id, entry as FirebaseHistoryEntry))
-        .sort((a, b) => b.startTs - a.startTs));
+      
+      const converted = Object.entries(data).map(([id, e]: [string, any]) => {
+        const entry = e as FirebaseHistoryEntry;
+        const cfg = CATEGORY_MAP[entry.status] || CATEGORY_MAP["alert"];
+        const ts = entry.timestamp;
+        const dateObj = new Date(ts);
+        const dateStr = dateObj.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, ".");
+        
+        const alerts: SortedAlert[] = entry.cities.map(city => ({
+          data: city,
+          date: dateStr,
+          time: dateObj.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          alertDate: dateObj.toISOString(),
+          category: typeof cfg.category === 'number' ? cfg.category : 1,
+          status: entry.status,
+          category_desc: cfg.desc,
+          matrix_id: 0, rid: 0, _ts: ts,
+        }));
+
+        const byCat = new Map<number | string, string[]>();
+        byCat.set(cfg.category, entry.cities);
+
+        return { id: `fb_${id}`, startTs: ts, endTs: ts, alerts, byCategory: byCat };
+      });
+      setFbBatches(converted);
     });
     return () => off(historyRef, "value", unsubscribe);
   }, [enabled]);
 
-  // 2. Fetch External History
+  // 2. Fetch External
   const fetchExternal = useCallback(async () => {
     if (loading) return;
     setLoading(true);
-
     try {
-      // Use URL object to ensure proper query param formatting
       const url = new URL("/api/oref-history", window.location.origin);
       url.searchParams.set("lang", "he");
-      url.searchParams.set("t", Date.now().toString()); // Cache bust
+      url.searchParams.set("t", Date.now().toString());
 
       const res = await fetch(url.toString());
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const data = await res.json();
       
-      let processed: AlertBatch[] = [];
-
+      const processed: AlertBatch[] = [];
       if (Array.isArray(data) && data.length > 0) {
         if ("data" in data[0]) {
-          // Oref format (flat list)
-          const sorted = (data as OrefHistoryAlert[]).map(a => ({ ...a, _ts: parseOrefDate(a.date, a.time) })).sort((a, b) => b._ts - a._ts);
-          
-          let current: AlertBatch | null = null;
-          for (const alert of sorted) {
-            let statusOverride = "";
+          // Oref format
+          for (const alert of data as OrefHistoryAlert[]) {
+            const ts = parseOrefDate(alert.date, alert.time);
+            let status = "";
             const desc = alert.category_desc || "";
-            if (desc.includes("ניתן לצאת") || desc.includes("הסתיים")) statusOverride = "clear";
-            else if (desc.includes("בדקות הקרובות") || desc.includes("מודיעין")) statusOverride = "pre_alert";
+            if (desc.includes("ניתן לצאת") || desc.includes("הסתיים")) status = "clear";
+            else if (desc.includes("בדקות הקרובות") || desc.includes("מודיעין")) status = "pre_alert";
 
-            if (!current || Math.abs(current.startTs - alert._ts) > 120000) {
-              current = { id: `oref_${alert._ts}`, startTs: alert._ts, endTs: alert._ts, alerts: [], byCategory: new Map() };
-              processed.push(current);
-            }
-            const alertWithStatus = { ...alert, status: statusOverride };
-            current.alerts.push(alertWithStatus);
-            current.startTs = Math.min(current.startTs, alert._ts);
-            
-            const cfg = statusOverride ? CATEGORY_MAP[statusOverride] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
-            const list = current.byCategory.get(cfg.category) || [];
-            if (!list.includes(alert.data)) { list.push(alert.data); current.byCategory.set(cfg.category, list); }
+            const cfg = status ? CATEGORY_MAP[status] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
+            const byCat = new Map<number | string, string[]>();
+            byCat.set(cfg.category, [alert.data]);
+
+            processed.push({
+              id: `oref_${ts}_${alert.rid}`,
+              startTs: ts, endTs: ts,
+              alerts: [{ ...alert, _ts: ts, status }],
+              byCategory: byCat
+            });
           }
         } else if ("alerts" in data[0]) {
-          // TzevaAdom format (nested batches fallback)
-          processed = (data as TzevaAdomBatch[]).map(b => {
-            const alerts: SortedAlert[] = [];
-            const byCat = new Map<number | string, string[]>();
-            let start = Infinity;
+          // TzevaAdom format
+          for (const b of data as TzevaAdomBatch[]) {
             for (const a of b.alerts) {
                 if (a.isDrill) continue;
                 const ts = a.time * 1000;
-                start = Math.min(start, ts);
                 const { category, desc } = threatToCategory(a.threat);
-                for (const city of a.cities) {
-                    alerts.push({ data: city, date: "", time: "", alertDate: new Date(ts).toISOString(), category, category_desc: desc, matrix_id: 0, rid: b.id, _ts: ts });
-                    const list = byCat.get(category) || [];
-                    if (!list.includes(city)) { list.push(city); byCat.set(category, list); }
-                }
+                const byCat = new Map<number | string, string[]>();
+                byCat.set(category, a.cities);
+                const alerts: SortedAlert[] = a.cities.map(c => ({
+                    data: city, date: "", time: "", alertDate: new Date(ts).toISOString(),
+                    category, category_desc: desc, matrix_id: 0, rid: b.id, _ts: ts
+                } as any));
+                processed.push({ id: `ta_${ts}_${b.id}`, startTs: ts, endTs: ts, alerts, byCategory: byCat });
             }
-            return { id: `ta_${b.id}`, startTs: start, endTs: start, alerts, byCategory: byCat };
-          }).filter(b => b.alerts.length > 0);
+          }
         }
       }
       setExternalBatches(processed);
     } catch (err) {
-      console.error("External history hook error:", err);
+      console.error("External history error:", err);
     } finally {
       setLoading(false);
     }
@@ -179,21 +166,58 @@ export function useHistoryAlerts(enabled = true) {
     if (enabled && externalBatches.length === 0) fetchExternal();
   }, [enabled, fetchExternal, externalBatches.length]);
 
-  // 3. Merge & Deduplicate
+  // 3. Final Batching pass (Group everything within 2 mins)
   useEffect(() => {
-    const combined = [...fbBatches, ...externalBatches].sort((a, b) => b.startTs - a.startTs);
-    const final: AlertBatch[] = [];
-    const seen = new Set();
-    
-    for (const b of combined) {
-      const cityHash = b.alerts.map(a => a.data).sort().join(",");
-      const hash = `${Math.floor(b.startTs / 15000)}_${cityHash}`;
-      if (!seen.has(hash)) { 
-        final.push(b); 
-        seen.add(hash); 
-      }
+    // Collect all individual alert objects from all batches
+    const allAlerts: SortedAlert[] = [];
+    [...fbBatches, ...externalBatches].forEach(b => allAlerts.push(...b.alerts));
+
+    // Sort all alerts by time descending
+    allAlerts.sort((a, b) => b._ts - a._ts);
+
+    // Deduplicate identical alerts (same city, status, and very close time)
+    const uniqueAlerts: SortedAlert[] = [];
+    const seenHashes = new Set<string>();
+    for (const a of allAlerts) {
+        // Hash by city + status + 15s window
+        const hash = `${a.data}_${a.status || a.category}_${Math.floor(a._ts / 15000)}`;
+        if (!seenHashes.has(hash)) {
+            uniqueAlerts.push(a);
+            seenHashes.add(hash);
+        }
     }
-    setBatches(final);
+
+    // Perform final grouping into batches (2 min window)
+    const finalBatches: AlertBatch[] = [];
+    let currentBatch: AlertBatch | null = null;
+
+    for (const alert of uniqueAlerts) {
+        if (!currentBatch || Math.abs(currentBatch.startTs - alert._ts) > 120000) {
+            currentBatch = {
+                id: `batch_${alert._ts}`,
+                startTs: alert._ts,
+                endTs: alert._ts,
+                alerts: [],
+                byCategory: new Map(),
+            };
+            finalBatches.push(currentBatch);
+        }
+
+        currentBatch.alerts.push(alert);
+        currentBatch.startTs = Math.min(currentBatch.startTs, alert._ts);
+        currentBatch.endTs = Math.max(currentBatch.endTs, alert._ts);
+
+        // Update category map within batch
+        let status = alert.status || "";
+        const cfg = status ? CATEGORY_MAP[status] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
+        const list = currentBatch.byCategory.get(cfg.category) || [];
+        if (!list.includes(alert.data)) {
+            list.push(alert.data);
+            currentBatch.byCategory.set(cfg.category, list);
+        }
+    }
+
+    setBatches(finalBatches);
     setHasMore(false);
   }, [fbBatches, externalBatches]);
 
