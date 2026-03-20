@@ -146,7 +146,7 @@ export function useHistoryAlerts(enabled = true) {
                 const byCat = new Map<number | string, string[]>();
                 byCat.set(category, a.cities);
                 const alerts: SortedAlert[] = a.cities.map(c => ({
-                    data: city, date: "", time: "", alertDate: new Date(ts).toISOString(),
+                    data: c, date: "", time: "", alertDate: new Date(ts).toISOString(),
                     category, category_desc: desc, matrix_id: 0, rid: b.id, _ts: ts
                 } as any));
                 processed.push({ id: `ta_${ts}_${b.id}`, startTs: ts, endTs: ts, alerts, byCategory: byCat });
