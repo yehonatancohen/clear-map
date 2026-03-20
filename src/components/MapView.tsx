@@ -18,7 +18,7 @@ import { ActiveAlert, UavTrack } from "@/types";
 import type { MapMode } from "./TimelineModeToggle";
 import TimelinePolygons from "./TimelinePolygons";
 import HistoryPanel from "./HistoryPanel";
-import { useHistoryAlerts, HistoryRange, SortedAlert } from "@/hooks/useTimelineHistory";
+import { useHistoryAlerts, SortedAlert } from "@/hooks/useTimelineHistory";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
@@ -117,16 +117,16 @@ function AlertFitter({
 function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
   const s = mp.status || "alert";
   const colorMap: Record<string, string> = {
-    pre_alert: "#FF6A00",
+    pre_alert: "#FFA500",
     alert: "#FF2A2A",
-    after_alert: "#ff2a2a6c",
+    after_alert: "#10B981",
     uav: "#E040FB",
     terrorist: "#FF0055",
   };
   const fillMap: Record<string, string> = {
-    pre_alert: "#FF6A00",
+    pre_alert: "#FFA500",
     alert: "#FF2A2A",
-    after_alert: "#ff2a2ac7",
+    after_alert: "#10B981",
     uav: "#E040FB",
     terrorist: "#FF0055",
   };
@@ -135,9 +135,9 @@ function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
     weight: 2,
     fillColor: fillMap[s] || "#ef4444",
     fillOpacity:
-      s === "after_alert" ? 0.15 :
+      s === "after_alert" ? 0.3 :
         mp.is_double ? 0.6 : 0.5,
-    opacity: s === "after_alert" ? 0.4 : 1,
+    opacity: s === "after_alert" ? 0.6 : 1,
     className:
       isNew ? "alert-polygon-new" :
         mp.is_double && s === "alert" ? "alert-polygon-double" : "",
@@ -153,16 +153,15 @@ export default function MapView() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const containerRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<MapMode>("live");
-  const [historyRange, setHistoryRange] = useState<HistoryRange>(1);
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<SortedAlert[]>([]);
 
-  const history = useHistoryAlerts(historyRange, mode === "history");
+  const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
 
   useEffect(() => {
     setSelectedBatchId(null);
     setSelectedBatchAlerts([]);
-  }, [historyRange]);
+  }, [mode]);
 
   const [newAlertIds, setNewAlertIds] = useState<Set<string>>(new Set());
   const prevAlertIdsRef = useRef<Set<string>>(new Set());
@@ -260,11 +259,10 @@ export default function MapView() {
       </MapContainer>
       {mode === "history" && (
         <HistoryPanel
-          batches={history.batches}
-          loading={history.loading}
-          progress={history.progress}
-          range={historyRange}
-          onRangeChange={setHistoryRange}
+          batches={batches}
+          loading={loading}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
           selectedBatchId={selectedBatchId}
           onSelectBatch={(id, alerts) => {
             setSelectedBatchId(id);
@@ -277,6 +275,7 @@ export default function MapView() {
           }}
         />
       )}
+
     </div>
   );
 }

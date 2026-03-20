@@ -1,261 +1,167 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { OrefHistoryAlert } from "@/types";
-import { getCachedBatchIds, getCachedBatches, cacheBatches, CachedBatch } from "@/lib/historyCache";
+import { ref, onValue, off, query, limitToLast } from "firebase/database";
+import { rtdb } from "@/lib/firebase";
 
-export type HistoryRange = 1 | 2 | 3 | 7;
-
-export type SortedAlert = OrefHistoryAlert & { _ts: number };
+export type SortedAlert = OrefHistoryAlert & { _ts: number; status?: string };
 
 export interface AlertBatch {
   id: string;
   startTs: number;
   endTs: number;
   alerts: SortedAlert[];
-  byCategory: Map<number, string[]>;
+  byCategory: Map<number | string, string[]>;
 }
 
-interface RawBatch {
-  id: number;
-  description?: string | null;
-  alerts: {
-    time: number;
-    cities: string[];
-    threat: number;
-    isDrill: boolean;
-  }[];
+interface FirebaseHistoryEntry {
+  status: string;
+  cities: string[];
+  timestamp: number;
 }
 
-// ~50 batches/day estimate
-const BATCHES_PER_DAY = 55;
-// How many IDs to request per API call
-const FETCH_CHUNK = 5;
-// Delay between fetch chunks (ms)
-const FETCH_DELAY = 300;
+const CATEGORY_MAP: Record<string | number, { category: number | string; desc: string }> = {
+  1: { category: 1, desc: "ירי רקטות וטילים" },
+  2: { category: 2, desc: "חדירת כלי טיס עוין" },
+  3: { category: 3, desc: "חדירת מחבלים" },
+  10: { category: "pre_alert", desc: "התרעה מוקדמת" },
+  "alert": { category: 1, desc: "ירי רקטות וטילים" },
+  "uav": { category: 2, desc: "חדירת כלי טיס עוין" },
+  "terrorist": { category: 3, desc: "חדירת מחבלים" },
+  "pre_alert": { category: "pre_alert", desc: "התרעה מוקדמת" },
+  "clear": { category: "clear", desc: "האירוע הסתיים" },
+};
 
-function threatToCategory(threat: number): { category: number; desc: string } {
-  switch (threat) {
-    case 5:
-      return { category: 2, desc: "חדירת כלי טיס עוין" };
-    case 2:
-      return { category: 3, desc: "חדירת מחבלים" };
-    case 6:
-      return { category: 10, desc: "רעידת אדמה" };
-    default:
-      return { category: 1, desc: "ירי רקטות וטילים" };
-  }
+function parseOrefDate(dateStr: string, timeStr: string): number {
+  const [day, month, year] = dateStr.split(".").map(Number);
+  const [h, m, s] = timeStr.split(":").map(Number);
+  return new Date(year, month - 1, day, h, m, s).getTime();
 }
 
-function convertBatch(raw: RawBatch): AlertBatch {
-  const alerts: SortedAlert[] = [];
-  const byCategory = new Map<number, string[]>();
-  let startTs = Infinity;
-  let endTs = 0;
+function convertFirebaseEntry(id: string, entry: FirebaseHistoryEntry): AlertBatch {
+  const { status, cities, timestamp } = entry;
+  const cfg = CATEGORY_MAP[status] || CATEGORY_MAP["alert"];
+  const dateObj = new Date(timestamp);
+  const dateStr = dateObj.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, ".");
+  
+  const alerts: SortedAlert[] = cities.map(city => ({
+    data: city,
+    date: dateStr,
+    time: dateObj.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    alertDate: dateObj.toISOString(),
+    category: typeof cfg.category === 'number' ? cfg.category : 1,
+    status: status,
+    category_desc: cfg.desc,
+    matrix_id: 0,
+    rid: 0,
+    _ts: timestamp,
+  }));
 
-  for (const a of raw.alerts) {
-    if (a.isDrill) continue;
-    const tsMs = a.time * 1000;
-    const { category, desc } = threatToCategory(a.threat);
-    if (tsMs < startTs) startTs = tsMs;
-    if (tsMs > endTs) endTs = tsMs;
+  const byCategory = new Map<number | string, string[]>();
+  byCategory.set(cfg.category, cities);
 
-    const dateObj = new Date(tsMs);
-    const day = String(dateObj.getDate()).padStart(2, "0");
-    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const year = dateObj.getFullYear();
-    const h = String(dateObj.getHours()).padStart(2, "0");
-    const m = String(dateObj.getMinutes()).padStart(2, "0");
-    const s = String(dateObj.getSeconds()).padStart(2, "0");
+  return { id: `fb_${id}`, startTs: timestamp, endTs: timestamp, alerts, byCategory };
+}
 
-    for (const city of a.cities) {
-      alerts.push({
-        data: city,
-        date: `${day}.${month}.${year}`,
-        time: `${h}:${m}:${s}`,
-        alertDate: dateObj.toISOString(),
-        category,
-        category_desc: desc,
-        matrix_id: 0,
-        rid: raw.id,
-        _ts: tsMs,
-      });
+export function useHistoryAlerts(enabled = true) {
+  const [batches, setBatches] = useState<AlertBatch[]>([]);
+  const [fbBatches, setFbBatches] = useState<AlertBatch[]>([]);
+  const [externalBatches, setExternalBatches] = useState<AlertBatch[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
-      const list = byCategory.get(category);
-      if (list) {
-        if (!list.includes(city)) list.push(city);
-      } else {
-        byCategory.set(category, [city]);
+  // 1. Firebase Listen
+  useEffect(() => {
+    if (!enabled) return;
+    const historyRef = query(ref(rtdb, "/public_state/history"), limitToLast(200));
+    const unsubscribe = onValue(historyRef, (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      setFbBatches(Object.entries(data)
+        .map(([id, entry]) => convertFirebaseEntry(id, entry as FirebaseHistoryEntry))
+        .sort((a, b) => b.startTs - a.startTs));
+    });
+    return () => off(historyRef, "value", unsubscribe);
+  }, [enabled]);
+
+  // 2. Fetch History (Oref AJAX endpoint)
+  const fetchExternal = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/oref-history?lang=he");
+      if (!res.ok) throw new Error("Fetch failed");
+      const data: OrefHistoryAlert[] = await res.json();
+      
+      const processed: AlertBatch[] = [];
+      if (Array.isArray(data) && data.length > 0) {
+        // Oref format (flat list)
+        const sorted = data.map(a => ({ ...a, _ts: parseOrefDate(a.date, a.time) })).sort((a, b) => b._ts - a._ts);
+        
+        let current: AlertBatch | null = null;
+        for (const alert of sorted) {
+          // Identify clearance or pre-alerts from description
+          let statusOverride = "";
+          const desc = alert.category_desc || "";
+          
+          if (desc.includes("ניתן לצאת") || desc.includes("הסתיים")) {
+            statusOverride = "clear";
+          } else if (desc.includes("בדקות הקרובות") || desc.includes("מודיעין")) {
+            statusOverride = "pre_alert";
+          }
+
+          // Batch within 2 minutes for AJAX results as they are more granular
+          if (!current || Math.abs(current.startTs - alert._ts) > 120000) {
+            current = { id: `oref_${alert._ts}_${alert.rid}`, startTs: alert._ts, endTs: alert._ts, alerts: [], byCategory: new Map() };
+            processed.push(current);
+          }
+          
+          const alertWithStatus = { ...alert, status: statusOverride };
+          current.alerts.push(alertWithStatus);
+          current.startTs = Math.min(current.startTs, alert._ts);
+          
+          const cfg = statusOverride ? CATEGORY_MAP[statusOverride] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
+          const catKey = cfg.category;
+          
+          const list = current.byCategory.get(catKey) || [];
+          if (!list.includes(alert.data)) {
+            list.push(alert.data);
+            current.byCategory.set(catKey, list);
+          }
+        }
       }
+      setExternalBatches(processed);
+    } catch (err) {
+      console.error("External AJAX history error:", err);
+    } finally {
+      setLoading(false);
     }
-  }
-
-  return {
-    id: `batch_${raw.id}`,
-    startTs,
-    endTs: endTs || startTs,
-    alerts,
-    byCategory,
-  };
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface HistoryState {
-  batches: AlertBatch[];
-  loading: boolean;
-  progress: number;
-}
-
-export function useHistoryAlerts(days: HistoryRange, enabled = true): HistoryState {
-  const [state, setState] = useState<HistoryState>({
-    batches: [],
-    loading: false,
-    progress: 0,
-  });
-  const abortRef = useRef<AbortController | null>(null);
+  }, [loading]);
 
   useEffect(() => {
-    if (!enabled) {
-      abortRef.current?.abort();
-      return;
-    }
+    if (enabled && externalBatches.length === 0) fetchExternal();
+  }, [enabled, fetchExternal, externalBatches.length]);
 
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setState({ batches: [], loading: true, progress: 0 });
-
-    (async () => {
-      try {
-        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-        const batchMap = new Map<number, RawBatch>();
-
-        // 1. Fetch latest batch list
-        const listRes = await fetch("/api/oref-history", { signal: controller.signal });
-        if (!listRes.ok) throw new Error(`HTTP ${listRes.status}`);
-        const list: RawBatch[] = await listRes.json();
-        if (controller.signal.aborted) return;
-
-        for (const b of list) batchMap.set(b.id, b);
-
-        // Cache list batches
-        cacheBatches(
-          list.map((b) => ({ id: b.id, alerts: b.alerts, cachedAt: Date.now() })),
-        ).catch(() => {});
-
-        const latestId = Math.max(...list.map((b) => b.id));
-        const lowestListId = Math.min(...list.map((b) => b.id));
-
-        // Show initial data immediately
-        updateState(batchMap, cutoff, true, 10);
-
-        // 2. Calculate which older IDs we need
-        const targetLowestId = latestId - days * BATCHES_PER_DAY;
-        const allNeededIds: number[] = [];
-        for (let id = lowestListId - 1; id >= targetLowestId; id--) {
-          allNeededIds.push(id);
-        }
-
-        if (allNeededIds.length === 0) {
-          updateState(batchMap, cutoff, false, 100);
-          return;
-        }
-
-        // 3. Check IndexedDB for cached batches
-        let cachedIds: Set<number>;
-        try {
-          cachedIds = await getCachedBatchIds();
-        } catch {
-          cachedIds = new Set();
-        }
-        if (controller.signal.aborted) return;
-
-        const cachedNeeded = allNeededIds.filter((id) => cachedIds.has(id));
-        const uncachedNeeded = allNeededIds.filter((id) => !cachedIds.has(id));
-
-        // Load from cache
-        if (cachedNeeded.length > 0) {
-          try {
-            const cached = await getCachedBatches(cachedNeeded);
-            for (const c of cached) {
-              batchMap.set(c.id, { id: c.id, alerts: c.alerts });
-            }
-            updateState(batchMap, cutoff, uncachedNeeded.length > 0, 30);
-          } catch {
-            // cache read failed, will fetch instead
-          }
-          if (controller.signal.aborted) return;
-        }
-
-        // 4. Fetch missing batches progressively
-        const totalToFetch = uncachedNeeded.length;
-        let fetched = 0;
-
-        for (let i = 0; i < uncachedNeeded.length; i += FETCH_CHUNK) {
-          if (controller.signal.aborted) return;
-
-          const chunk = uncachedNeeded.slice(i, i + FETCH_CHUNK);
-          const idsParam = chunk.join(",");
-
-          try {
-            const res = await fetch(`/api/oref-history?ids=${idsParam}`, {
-              signal: controller.signal,
-            });
-            if (res.ok) {
-              const batches: RawBatch[] = await res.json();
-              const toCache: CachedBatch[] = [];
-
-              for (const b of batches) {
-                batchMap.set(b.id, b);
-                toCache.push({ id: b.id, alerts: b.alerts, cachedAt: Date.now() });
-              }
-
-              // Cache in background
-              if (toCache.length > 0) {
-                cacheBatches(toCache).catch(() => {});
-              }
-            }
-          } catch (err) {
-            if (controller.signal.aborted) return;
-            // Individual chunk failed, continue
-          }
-
-          fetched += chunk.length;
-          const pct = Math.round(30 + (fetched / totalToFetch) * 70);
-          updateState(batchMap, cutoff, i + FETCH_CHUNK < uncachedNeeded.length, pct);
-
-          // Delay to avoid rate limiting
-          if (i + FETCH_CHUNK < uncachedNeeded.length) {
-            await sleep(FETCH_DELAY);
-          }
-        }
-
-        updateState(batchMap, cutoff, false, 100);
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        console.error("History fetch failed:", err);
-        setState((s) => ({ ...s, loading: false }));
+  // 3. Merge & Deduplicate
+  useEffect(() => {
+    const combined = [...fbBatches, ...externalBatches].sort((a, b) => b.startTs - a.startTs);
+    const final: AlertBatch[] = [];
+    const seen = new Set();
+    
+    for (const b of combined) {
+      const cityHash = b.alerts.map(a => a.data).sort().join(",");
+      // Use 15-second buckets for deduplication between sources
+      const hash = `${Math.floor(b.startTs / 15000)}_${cityHash}`;
+      if (!seen.has(hash)) { 
+        final.push(b); 
+        seen.add(hash); 
       }
-    })();
-
-    function updateState(
-      batchMap: Map<number, RawBatch>,
-      cutoff: number,
-      loading: boolean,
-      progress: number,
-    ) {
-      const batches = Array.from(batchMap.values())
-        .map(convertBatch)
-        .filter((b) => b.alerts.length > 0 && b.endTs >= cutoff)
-        .sort((a, b) => b.startTs - a.startTs);
-
-      setState({ batches, loading, progress });
     }
+    setBatches(final);
+    setHasMore(false);
+  }, [fbBatches, externalBatches]);
 
-    return () => controller.abort();
-  }, [days, enabled]);
-
-  return state;
+  return { batches, loading, hasMore, loadMore: fetchExternal };
 }

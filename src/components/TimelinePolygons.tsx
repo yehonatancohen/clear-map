@@ -7,16 +7,20 @@ import { useMergedPolygons } from "@/hooks/useMergedPolygons";
 import type { PolygonLookup } from "@/hooks/usePolygons";
 import type { ActiveAlert } from "@/types";
 
-// Use the same colors as the live map for recognition
+// Unified color scheme: pre alert -> orange, alert -> red, leave shelter -> emerald green, uav -> purple
 const HISTORY_COLORS: Record<string, { stroke: string; fill: string }> = {
-  alert:      { stroke: "#FF2A2A", fill: "#FF2A2A" },     // red — rockets/missiles
-  pre_alert:  { stroke: "#FF6A00", fill: "#FF6A00" },     // orange — early warnings
+  alert:      { stroke: "#FF2A2A", fill: "#FF2A2A" },     // red — active alert
+  pre_alert:  { stroke: "#FFA500", fill: "#FFA500" },     // orange — early warnings
   uav:        { stroke: "#E040FB", fill: "#E040FB" },     // purple — UAV
   terrorist:  { stroke: "#FF0055", fill: "#FF0055" },     // magenta — terrorists
+  clear:      { stroke: "#10B981", fill: "#10B981" },     // emerald green — leave shelter
 };
 
-function categoryToStatus(category: number): string {
-  switch (category) {
+function getStatus(alert: OrefHistoryAlert & { status?: string }): string {
+  if (alert.status === "clear") return "clear";
+  if (alert.status === "pre_alert") return "pre_alert";
+  
+  switch (alert.category) {
     case 1: return "alert";
     case 2: return "uav";
     case 3: return "terrorist";
@@ -25,7 +29,7 @@ function categoryToStatus(category: number): string {
 }
 
 interface TimelinePolygonsProps {
-  alerts: (OrefHistoryAlert & { _ts: number })[];
+  alerts: (OrefHistoryAlert & { _ts: number; status?: string })[];
   polygons: PolygonLookup | null;
 }
 
@@ -40,7 +44,7 @@ export default function TimelinePolygons({
       city_name_he: a.data,
       timestamp: a._ts,
       is_double: false,
-      status: categoryToStatus(a.category),
+      status: getStatus(a),
     }));
   }, [alerts]);
 
