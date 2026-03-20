@@ -6,6 +6,7 @@ import { ActiveAlert } from "@/types";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 import { generateShareImage, buildShareText } from "@/utils/generateShareImage";
+import type { MapMode } from "./TimelineModeToggle";
 
 interface IntelPanelProps {
   alerts: ActiveAlert[];
@@ -13,6 +14,8 @@ interface IntelPanelProps {
   isFullscreen: boolean;
   theme: "light" | "dark";
   onThemeChange: (theme: "light" | "dark") => void;
+  mode?: MapMode;
+  onModeChange?: (mode: MapMode) => void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; bg: string }> = {
@@ -85,6 +88,8 @@ export default function IntelPanel({
   isFullscreen,
   theme,
   onThemeChange,
+  mode = "live",
+  onModeChange,
 }: IntelPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
@@ -283,21 +288,21 @@ export default function IntelPanel({
           />
         </button>
 
-        {/* Intel toggle */}
-        <button
-          onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); setShowSettings(false); }}
-          className={`relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isOpen ? 'bg-white/20' : ''}`}
-          title="עדכונים"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={hasAlerts ? "text-white/70" : "text-white/30"}>
-            <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-          </svg>
-          {hasAlerts && (
+        {/* Intel toggle — only shown when there are active alerts */}
+        {hasAlerts && (
+          <button
+            onClick={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); setShowSettings(false); }}
+            className={`relative liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${isOpen ? 'bg-white/20' : ''}`}
+            title="עדכונים"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
+              <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+            </svg>
             <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white shadow-md">
               {alerts.length}
             </span>
-          )}
-        </button>
+          </button>
+        )}
 
         {/* Legend */}
         <button
@@ -326,22 +331,6 @@ export default function IntelPanel({
           )}
         </button>
 
-        {/* Fullscreen */}
-        <button
-          onClick={onToggleFullscreen}
-          className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95]`}
-          title={isFullscreen ? "יציאה ממסך מלא" : "מסך מלא"}
-        >
-          {isFullscreen ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-              <path d="M9 9L4 4m0 0v4m0-4h4m7 5l5-5m0 0v4m0-4h-4m-7 11l-5 5m0 0v-4m0 4h4m7-5l5 5m0 0v-4m0 4h-4" />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-              <path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-            </svg>
-          )}
-        </button>
       </div>
 
       {/* ─── Legend mini-popup ─── */}
@@ -643,6 +632,36 @@ export default function IntelPanel({
                   </button>
                 </div>
 
+                {/* History button */}
+                {onModeChange && (
+                  <button
+                    onClick={() => { onModeChange("history"); setShowAbout(false); }}
+                    className="flex items-center justify-center gap-2 w-full rounded-xl py-2 transition-all bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 active:scale-[0.98]"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M12 6v6l4 2" />
+                      <circle cx="12" cy="12" r="9" />
+                    </svg>
+                    <span className="text-[12px] font-bold">היסטוריה</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={onToggleFullscreen}
+                  className="flex items-center justify-center gap-2 w-full rounded-xl py-2 transition-all bg-white/5 text-white/60 hover:bg-white/10 border border-white/10 active:scale-[0.98]"
+                >
+                  {isFullscreen ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M9 9L4 4m0 0v4m0-4h4m7 5l5-5m0 0v4m0-4h-4m-7 11l-5 5m0 0v-4m0 4h4m7-5l5 5m0 0v-4m0 4h-4" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                    </svg>
+                  )}
+                  <span className="text-[12px] font-medium">{isFullscreen ? "יציאה ממסך מלא" : "מסך מלא"}</span>
+                </button>
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={handleShare}
@@ -741,8 +760,8 @@ export default function IntelPanel({
         })}
       </div>
 
-      {/* ─── Bottom status bar (when panel is closed and there are alerts) ─── */}
-      {!isOpen && hasAlerts && (
+      {/* ─── Bottom status bar (when panel is closed and there are alerts, hidden in timeline mode) ─── */}
+      {!isOpen && hasAlerts && mode === "live" && (
         <div
           className={`absolute bottom-4 right-3 left-3 z-[1000] flex flex-wrap items-center justify-center gap-2 sm:gap-3 liquid-glass rounded-xl px-3 sm:px-4 py-1.5 sm:py-2 glass-overlay`}
           dir="rtl"

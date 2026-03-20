@@ -15,6 +15,10 @@ import UavFlightPath from "./UavFlightPath";
 import { useUavTracks } from "@/hooks/useUavTracks";
 import { setMapInstance } from "@/lib/mapRef";
 import { ActiveAlert, UavTrack } from "@/types";
+import type { MapMode } from "./TimelineModeToggle";
+import TimelinePolygons from "./TimelinePolygons";
+import HistoryPanel from "./HistoryPanel";
+import { useHistoryAlerts, HistoryRange } from "@/hooks/useTimelineHistory";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
@@ -159,6 +163,19 @@ export default function MapView() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const containerRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<MapMode>("live");
+  const [historyRange, setHistoryRange] = useState<HistoryRange>(1);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<import("@/hooks/useTimelineHistory").SortedAlert[]>([]);
+
+  // History data (only fetches when in history mode)
+  const history = useHistoryAlerts(historyRange, mode === "history");
+
+  // Clear selection when range changes
+  useEffect(() => {
+    setSelectedBatchId(null);
+    setSelectedBatchAlerts([]);
+  }, [historyRange]);
 
   // Track newly appeared alerts for blink animation
   const [newAlertIds, setNewAlertIds] = useState<Set<string>>(new Set());
@@ -214,6 +231,8 @@ export default function MapView() {
         isFullscreen={isFullscreen}
         theme={theme}
         onThemeChange={setTheme}
+        mode={mode}
+        onModeChange={setMode}
       />
       <LiveIndicator />
       <PwaInstallBanner />
@@ -227,23 +246,49 @@ export default function MapView() {
         <ZoomListener />
         <MapRefSetter />
         <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
-        {polygons && (
-          <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
+        {mode === "live" && (
+          <>
+            {polygons && (
+              <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
+            )}
+            {mergedPolygons.map((mp) => {
+              const hasNewCity = mp.city_names_he.some((name) =>
+                newAlertIds.has(`alert_${name}`),
+              );
+              return mp.positions.map((positions, idx) => (
+                <Polygon
+                  key={`${mp.id}_${idx}`}
+                  positions={positions}
+                  pathOptions={getMergedPolygonStyle(mp, hasNewCity)}
+                />
+              ));
+            })}
+            <UavFlightPath tracks={uavTracks} theme={theme} />
+          </>
         )}
-        {mergedPolygons.map((mp) => {
-          const hasNewCity = mp.city_names_he.some((name) =>
-            newAlertIds.has(`alert_${name}`),
-          );
-          return mp.positions.map((positions, idx) => (
-            <Polygon
-              key={`${mp.id}_${idx}`}
-              positions={positions}
-              pathOptions={getMergedPolygonStyle(mp, hasNewCity)}
-            />
-          ));
-        })}
-        <UavFlightPath tracks={uavTracks} theme={theme} />
+        {mode === "history" && selectedBatchAlerts.length > 0 && (
+          <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
+        )}
       </MapContainer>
+      {mode === "history" && (
+        <HistoryPanel
+          batches={history.batches}
+          loading={history.loading}
+          progress={history.progress}
+          range={historyRange}
+          onRangeChange={setHistoryRange}
+          selectedBatchId={selectedBatchId}
+          onSelectBatch={(id, alerts) => {
+            setSelectedBatchId(id);
+            setSelectedBatchAlerts(alerts);
+          }}
+          onClose={() => {
+            setMode("live");
+            setSelectedBatchId(null);
+            setSelectedBatchAlerts([]);
+          }}
+        />
+      )}
     </div>
   );
 }
