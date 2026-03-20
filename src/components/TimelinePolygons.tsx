@@ -13,7 +13,7 @@ const HISTORY_COLORS: Record<string, { stroke: string; fill: string }> = {
   pre_alert:  { stroke: "#FFA500", fill: "#FFA500" },     // orange — early warnings
   uav:        { stroke: "#E040FB", fill: "#E040FB" },     // purple — UAV
   terrorist:  { stroke: "#FF0055", fill: "#FF0055" },     // magenta — terrorists
-  clear:      { stroke: "#10B981", fill: "#10B981" },     // emerald green — leave shelter
+  clear:      { stroke: "#10B981", fill: "#10B981" },     // green — leave shelter confirmation
 };
 
 function getStatus(alert: OrefHistoryAlert & { status?: string }): string {

@@ -115,14 +115,14 @@ function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
   const colorMap: Record<string, string> = {
     pre_alert: "#FFA500",
     alert: "#FF2A2A",
-    after_alert: "#10B981",
+    after_alert: "#A80000",
     uav: "#E040FB",
     terrorist: "#FF0055",
   };
   const fillMap: Record<string, string> = {
     pre_alert: "#FFA500",
     alert: "#FF2A2A",
-    after_alert: "#10B981",
+    after_alert: "#A80000",
     uav: "#E040FB",
     terrorist: "#FF0055",
   };
@@ -131,9 +131,9 @@ function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
     weight: 2,
     fillColor: fillMap[s] || "#ef4444",
     fillOpacity:
-      s === "after_alert" ? 0.3 :
+      s === "after_alert" ? 0.25 :
         mp.is_double ? 0.6 : 0.5,
-    opacity: s === "after_alert" ? 0.6 : 1,
+    opacity: s === "after_alert" ? 0.5 : 1,
     className:
       isNew ? "alert-polygon-new" :
         mp.is_double && s === "alert" ? "alert-polygon-double" : "",

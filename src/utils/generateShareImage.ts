@@ -7,7 +7,8 @@ const STATUS_META: Record<string, { emoji: string; label: string; color: string;
   alert: { emoji: "\uD83D\uDD34", label: "ירי רקטות וטילים", color: "#FF2A2A", fill: "rgba(255,42,42,0.5)" },
   uav: { emoji: "\uD83D\uDFE3", label: "כלי טיס עוין", color: "#E040FB", fill: "rgba(224,64,251,0.5)" },
   terrorist: { emoji: "\uD83D\uDD34", label: "חדירת מחבלים", color: "#FF0055", fill: "rgba(255,0,85,0.5)" },
-  after_alert: { emoji: "\u26AB", label: 'להישאר בממ"ד', color: "#FF2A2A", fill: "rgba(255,42,42,0.15)" },
+  after_alert: { emoji: "\u26AB", label: 'להישאר בממ"ד', color: "#A80000", fill: "rgba(168,0,0,0.25)" },
+  clear: { emoji: "\uD83D\uDFE2", label: "ניתן לצאת מהמרחב המוגן", color: "#10B981", fill: "rgba(16,185,129,0.4)" },
 };
 
 function loadImage(src: string): Promise<HTMLImageElement> {
