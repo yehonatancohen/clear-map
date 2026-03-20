@@ -66,7 +66,7 @@ function AlertFitter({
     // ActiveAlert uses city_name_he, SortedAlert uses data
     const cityNames = alerts.map((a) => ("city_name_he" in a ? a.city_name_he : a.data));
     const currentIds = cityNames.sort().join(",");
-    
+
     if (currentIds === prevIdsRef.current) return;
     prevIdsRef.current = currentIds;
 
@@ -92,7 +92,7 @@ function AlertFitter({
     if (allCoords.length === 0) return;
 
     const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => L.latLng(lat, lng)));
-    
+
     // On mobile, history panel takes bottom 50% of screen
     const isMobile = window.innerWidth < 640;
     const paddingBottom = (isMobile && isHistory) ? (window.innerHeight * 0.5) + 40 : 50;
@@ -113,16 +113,16 @@ function AlertFitter({
 function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
   const s = mp.status || "alert";
   const colorMap: Record<string, string> = {
-    pre_alert: "#FFA500",
+    pre_alert: "#FF6A00",
     alert: "#FF2A2A",
-    after_alert: "#A80000",
+    after_alert: "#ff2a2a6c",
     uav: "#E040FB",
     terrorist: "#FF0055",
   };
   const fillMap: Record<string, string> = {
-    pre_alert: "#FFA500",
+    pre_alert: "#FF6A00",
     alert: "#FF2A2A",
-    after_alert: "#A80000",
+    after_alert: "#ff2a2a6c",
     uav: "#E040FB",
     terrorist: "#FF0055",
   };
@@ -225,7 +225,7 @@ export default function MapView() {
         <ZoomListener />
         <MapRefSetter />
         <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
-        
+
         {mode === "live" && (
           <>
             <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
