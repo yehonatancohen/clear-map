@@ -209,21 +209,20 @@ function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, sem
       const diff1 = Math.abs(bearing1 - 180);
       const diff2 = Math.abs(bearing2 - 180);
       bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
-  } else {
+  } else if (isCoastal) {
     // If it's coastal, we are more lenient with West (sea) origins if the ellipse is stretched that way
-        // Pick the one that points slightly more towards typical threat origins if both are sea/land mix
-        // But generally allow the math to pick the better fit.
-        const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
-        const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
-        bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
-    } else {
-        if (isWest(bearing1) && !isWest(bearing2)) bearingDeg = bearing2;
-        else if (isWest(bearing2) && !isWest(bearing1)) bearingDeg = bearing1;
-        else {
-            const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
-            const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
-            bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
-        }
+    // Pick the one that points slightly more towards typical threat origins if both are sea/land mix
+    // But generally allow the math to pick the better fit.
+    const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
+    const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
+    bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
+  } else {
+    if (isWest(bearing1) && !isWest(bearing2)) bearingDeg = bearing2;
+    else if (isWest(bearing2) && !isWest(bearing1)) bearingDeg = bearing1;
+    else {
+      const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
+      const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
+      bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
     }
   }
 
