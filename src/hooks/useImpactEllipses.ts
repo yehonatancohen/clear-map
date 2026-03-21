@@ -193,6 +193,7 @@ function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, sem
 
   // Preference order: Lebanon (North) > East > Gaza (SW)
   const isLebanonLat = center[0] > 32.9; // If cluster is very far North, default to Lebanon
+  const isSouthOfRishon = center[0] < 32.0; // Rishon is ~31.97
   const isCoastal = center[1] < 34.85; // Close to Mediterranean coast
   
   function isWest(b: number) { return b >= 240 && b <= 300; }
@@ -203,9 +204,13 @@ function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, sem
       const diff1 = Math.min(Math.abs(bearing1), Math.abs(bearing1 - 360));
       const diff2 = Math.min(Math.abs(bearing2), Math.abs(bearing2 - 360));
       bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
+  } else if (isSouthOfRishon) {
+      // For southern clusters, pick the vector that points most South (closest to 180)
+      const diff1 = Math.abs(bearing1 - 180);
+      const diff2 = Math.abs(bearing2 - 180);
+      bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
   } else {
     // If it's coastal, we are more lenient with West (sea) origins if the ellipse is stretched that way
-    if (isCoastal && (isWest(bearing1) || isWest(bearing2))) {
         // Pick the one that points slightly more towards typical threat origins if both are sea/land mix
         // But generally allow the math to pick the better fit.
         const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
