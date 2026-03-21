@@ -117,6 +117,7 @@ export default function CityLabels({ polygons, theme }: CityLabelsProps) {
       const isLarge = mapState.zoom < 10 && label.tier <= 1;
       const fontSize = isLarge ? 14 : 12;
       
+      // Calculate dimensions for text-only without background padding
       const width = label.name.length * (fontSize * 0.8) + 12;
       const height = fontSize + 10;
       const rect = { x1: point.x - width / 2, y1: point.y - height / 2, x2: point.x + width / 2, y2: point.y + height / 2 };
