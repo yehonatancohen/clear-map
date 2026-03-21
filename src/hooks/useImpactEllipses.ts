@@ -145,10 +145,11 @@ function pca2d(points: [number, number][]): { angleDeg: number; semiMajor: numbe
   let maxMinor = 0;
 
   for (const [dx, dy] of local) {
-    // Project local km onto the rotated axes
-    // rotation=0 means major is North (Y).
-    const pMajor = Math.abs(dx * sinR + dy * cosR);
-    const pMinor = Math.abs(dx * cosR - dy * sinR);
+    // Inverse rotation: project world (dx,dy) back to ellipse local axes.
+    // In generateEllipseRing, major axis (localY) maps to (-sinR, cosR) in world.
+    // So the inverse is: localY = -dx*sinR + dy*cosR,  localX = dx*cosR + dy*sinR.
+    const pMajor = Math.abs(-dx * sinR + dy * cosR);
+    const pMinor = Math.abs(dx * cosR + dy * sinR);
     if (pMajor > maxMajor) maxMajor = pMajor;
     if (pMinor > maxMinor) maxMinor = pMinor;
   }

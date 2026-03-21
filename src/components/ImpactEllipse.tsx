@@ -144,9 +144,8 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
 
   return (
     <>
-      {ellipses.map((e) => {
+       {ellipses.map((e) => {
         const colors = STATUS_COLORS[e.status] || STATUS_COLORS.alert;
-        const ballisticPoints = computeBallisticPath(e.center, e.launchBearingDeg, e.launchDistanceKm);
 
         return (
           <span key={e.id}>
@@ -190,17 +189,6 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
                 </div>
               </Tooltip>
             </Marker>
-
-            {/* Launch direction arrow */}
-            <Polyline
-              positions={ballisticPoints}
-              pathOptions={{
-                color: colors.stroke,
-                weight: 2,
-                dashArray: "6, 4",
-                opacity: 0.5,
-              }}
-            />
           </span>
         );
       })}
