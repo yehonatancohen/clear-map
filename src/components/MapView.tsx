@@ -7,7 +7,10 @@ import L from "leaflet";
 
 import { useFirebaseAlerts } from "@/hooks/useFirebaseAlerts";
 import { usePolygons, PolygonLookup } from "@/hooks/usePolygons";
+import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { useMergedPolygons, MergedPolygon } from "@/hooks/useMergedPolygons";
+import { useImpactEllipses } from "@/hooks/useImpactEllipses";
+import ImpactEllipseLayer from "./ImpactEllipse";
 import IntelPanel from "./IntelBanner";
 import LiveIndicator from "./LiveIndicator";
 import { PwaInstallBanner } from "./PwaInstallBanner";
@@ -144,6 +147,7 @@ export default function MapView() {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
   const mergedPolygons = useMergedPolygons(alerts, polygons);
+  const impactEllipses = useImpactEllipses(alerts, polygons);
   const uavTracks = useUavTracks();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -152,6 +156,7 @@ export default function MapView() {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<SortedAlert[]>([]);
 
+  const { settings } = useNotificationSettings();
   const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
 
   useEffect(() => {
@@ -241,7 +246,8 @@ export default function MapView() {
                 />
               ));
             })}
-            <UavFlightPath tracks={uavTracks} theme={theme} />
+            {settings.showUavPath && <UavFlightPath tracks={uavTracks} theme={theme} />}
+            {settings.showImpactZones && <ImpactEllipseLayer ellipses={impactEllipses} />}
           </>
         )}
 

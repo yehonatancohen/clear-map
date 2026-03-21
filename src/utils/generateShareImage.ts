@@ -11,6 +11,20 @@ const STATUS_META: Record<string, { emoji: string; label: string; color: string;
   clear: { emoji: "\uD83D\uDFE2", label: "ניתן לצאת מהמרחב המוגן", color: "#10B981", fill: "rgba(16,185,129,0.4)" },
 };
 
+// Global cache for polygons to avoid repeated fetches
+let cachedPolygons: Record<string, { polygon: [number, number][] }> | null = null;
+
+async function getPolygons() {
+    if (cachedPolygons) return cachedPolygons;
+    try {
+        const res = await fetch("/data/polygons.json");
+        cachedPolygons = await res.json();
+        return cachedPolygons;
+    } catch {
+        return null;
+    }
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -21,13 +35,29 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function waitForTiles(map: L.Map, timeoutMs = 4000): Promise<void> {
+/**
+ * Rapidly check if tiles are loaded. 
+ * Instead of waiting 4s, we check if there are any pending 'loading' tiles.
+ */
+function waitForMapReady(map: L.Map, timeoutMs = 1500): Promise<void> {
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, timeoutMs);
-    map.once("idle", () => {
-      clearTimeout(timer);
-      setTimeout(resolve, 300);
+    
+    // Check if map is already stable
+    let isLoaded = true;
+    map.eachLayer((layer: any) => {
+        if (layer._loading) isLoaded = false;
     });
+
+    if (isLoaded) {
+        clearTimeout(timer);
+        resolve();
+    } else {
+        map.once("load zoomend moveend", () => {
+            clearTimeout(timer);
+            setTimeout(resolve, 100); // Tiny buffer
+        });
+    }
   });
 }
 
@@ -53,18 +83,20 @@ async function captureMapCenteredOnAlerts(
         allCoords.push(...poly.polygon);
       }
     }
-    if (allCoords.length === 0) {
-        // Fallback if no polygons
-        map.setView([32.0, 34.8], 8);
-    } else {
+    
+    if (allCoords.length > 0) {
       const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => L.latLng(lat, lng)));
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12, animate: false });
+      // Only jump if current view doesn't contain the alerts or is significantly different
+      const currentBounds = map.getBounds();
+      if (!currentBounds.contains(bounds) || map.getZoom() > 12 || map.getZoom() < 7) {
+          map.fitBounds(bounds, { padding: [60, 60], maxZoom: 11, animate: false });
+          await waitForMapReady(map);
+      }
     }
-    await waitForTiles(map);
   }
 
   const rect = container.getBoundingClientRect();
-  const dpr = 2;
+  const dpr = window.devicePixelRatio || 2;
   const canvas = document.createElement("canvas");
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
@@ -74,6 +106,7 @@ async function captureMapCenteredOnAlerts(
   ctx.fillStyle = "#030712";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
+  // Draw tiles
   const tiles = container.querySelectorAll<HTMLImageElement>(".leaflet-tile");
   for (const tile of tiles) {
     if (!tile.complete || !tile.naturalWidth) continue;
@@ -101,7 +134,7 @@ async function captureMapCenteredOnAlerts(
       ctx.stroke();
     }
 
-    // 2. Draw City Labels (Manual Canvas Rendering)
+    // 2. Draw City Labels
     const zoom = map.getZoom();
     const maxTier = getLabelHierarchy(zoom);
     const sortedCities = Object.entries(polygonsData)
@@ -121,7 +154,6 @@ async function captureMapCenteredOnAlerts(
     const occupiedRects: { x1: number; y1: number; x2: number; y2: number }[] = [];
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "600 12px Rubik, sans-serif";
 
     for (const city of sortedCities) {
         if (!city.polygon || city.polygon.length === 0) continue;
@@ -133,9 +165,13 @@ async function captureMapCenteredOnAlerts(
 
         if (point.x < 0 || point.y < 0 || point.x > rect.width || point.y > rect.height) continue;
 
+        const isLarge = zoom < 10 && city.tier <= 1;
+        const fontSize = isLarge ? 14 : 12;
+        ctx.font = `700 ${fontSize}px Rubik, sans-serif`;
+
         const text = city.rawName.includes(" - ") && zoom < 11.5 ? city.parentName : city.rawName;
         const textWidth = ctx.measureText(text).width + 12;
-        const textHeight = 20;
+        const textHeight = fontSize + 8;
 
         const r = {
             x1: point.x - textWidth / 2,
@@ -151,13 +187,10 @@ async function captureMapCenteredOnAlerts(
         );
 
         if (!collides) {
-            // Draw text halo
             ctx.strokeStyle = "black";
-            ctx.lineWidth = 3;
+            ctx.lineWidth = isLarge ? 4 : 3;
             ctx.strokeText(text, point.x, point.y);
-            
-            // Draw main text
-            ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.fillStyle = isLarge ? "rgba(255, 255, 255, 0.85)" : "rgba(255, 255, 255, 0.75)";
             ctx.fillText(text, point.x, point.y);
             occupiedRects.push(r);
         }
@@ -172,13 +205,7 @@ async function captureMapCenteredOnAlerts(
 }
 
 export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
-  let polygonsData: Record<string, { polygon: [number, number][] }> | null = null;
-  try {
-    polygonsData = await fetch("/data/polygons.json").then((r) => r.json());
-  } catch {
-    console.warn("Could not load polygons.json");
-  }
-
+  const polygonsData = await getPolygons();
   const mapCanvas = await captureMapCenteredOnAlerts(alerts, polygonsData);
 
   const SIZE = 1080;
@@ -187,7 +214,6 @@ export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
   canvas.height = SIZE;
   const ctx = canvas.getContext("2d")!;
 
-  // Draw map cropped to square
   const mw = mapCanvas.width;
   const mh = mapCanvas.height;
   const cropSize = Math.min(mw, mh);
@@ -195,14 +221,13 @@ export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
   const sy = (mh - cropSize) / 2;
   ctx.drawImage(mapCanvas, sx, sy, cropSize, cropSize, 0, 0, SIZE, SIZE);
 
-  // Top gradient for logo
+  // Overlays
   const topGrad = ctx.createLinearGradient(0, 0, 0, 160);
-  topGrad.addColorStop(0, "rgba(3,7,18,0.8)");
+  topGrad.addColorStop(0, "rgba(3,7,18,0.85)");
   topGrad.addColorStop(1, "rgba(3,7,18,0)");
   ctx.fillStyle = topGrad;
   ctx.fillRect(0, 0, SIZE, 160);
 
-  // Logo
   try {
     const logo = await loadImage("/logo-dark-theme.png");
     const logoH = 80;
@@ -216,10 +241,9 @@ export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
     ctx.fillText("מפה שקופה", SIZE - 30, 70);
   }
 
-  // Legend — only active statuses
   const activeStatuses = new Set(alerts.map((a) => a.status));
   if (activeStatuses.size > 0) {
-    const legendEntries = ["alert", "uav", "pre_alert", "terrorist", "after_alert"].filter(
+    const legendEntries = ["alert", "uav", "pre_alert", "terrorist", "after_alert", "clear"].filter(
       (s) => activeStatuses.has(s),
     );
     const legendH = 50 + legendEntries.length * 34;
@@ -227,8 +251,8 @@ export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
 
     const legGrad = ctx.createLinearGradient(0, legendY - 40, 0, SIZE);
     legGrad.addColorStop(0, "rgba(3,7,18,0)");
-    legGrad.addColorStop(0.3, "rgba(3,7,18,0.6)");
-    legGrad.addColorStop(1, "rgba(3,7,18,0.85)");
+    legGrad.addColorStop(0.3, "rgba(3,7,18,0.7)");
+    legGrad.addColorStop(1, "rgba(3,7,18,0.9)");
     ctx.fillStyle = legGrad;
     ctx.fillRect(0, legendY - 40, SIZE, SIZE - legendY + 40);
 
@@ -259,10 +283,7 @@ export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
   }
 
   return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))),
-      "image/png",
-    );
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))), "image/png", 0.9);
   });
 }
 
@@ -282,8 +303,7 @@ export function buildShareText(alerts: ActiveAlert[]): string {
   }
 
   let text = `מפה שקופה - ${alerts.length} התרעות פעילות\n\n`;
-
-  const order = ["alert", "uav", "terrorist", "pre_alert", "after_alert"];
+  const order = ["alert", "uav", "terrorist", "pre_alert", "after_alert", "clear"];
   for (const status of order) {
     if (!counts[status]) continue;
     const meta = STATUS_META[status];

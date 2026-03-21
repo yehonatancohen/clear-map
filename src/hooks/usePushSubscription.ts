@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import type { NotificationSettings } from "./useNotificationSettings";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -25,7 +26,11 @@ function hashEndpoint(endpoint: string): string {
   return "sub_" + Math.abs(hash).toString(36);
 }
 
-async function storeSubscription(subscription: PushSubscription) {
+async function storeSubscription(
+  subscription: PushSubscription, 
+  settings: NotificationSettings, 
+  userCoords: [number, number] | null
+) {
   try {
     const key = hashEndpoint(subscription.endpoint);
     const data = subscription.toJSON();
@@ -33,14 +38,20 @@ async function storeSubscription(subscription: PushSubscription) {
     const res = await fetch("/api/push-subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, endpoint: data.endpoint, keys: data.keys }),
+      body: JSON.stringify({ 
+        key, 
+        endpoint: data.endpoint, 
+        keys: data.keys,
+        settings,
+        userCoords
+      }),
     });
 
     if (!res.ok) {
       const errorText = await res.text();
       console.error("[Push] Subscription storage failed:", res.status, errorText);
     } else {
-      console.log("[Push] Subscription stored successfully");
+      console.log("[Push] Subscription synced successfully (Enabled:", settings.enabled, ")");
     }
   } catch (err) {
     console.error("[Push] Could not store subscription:", err);
@@ -50,99 +61,85 @@ async function storeSubscription(subscription: PushSubscription) {
 async function removeSubscription(endpoint: string) {
   try {
     const key = hashEndpoint(endpoint);
-    await fetch("/api/push-subscribe", {
+    const res = await fetch("/api/push-subscribe", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key }),
     });
+    if (res.ok) {
+        console.log("[Push] Subscription removed from server");
+    }
   } catch {
     // Ignore — might already be gone
   }
 }
 
-export function usePushSubscription(notificationsEnabled: boolean) {
+export function usePushSubscription(settings: NotificationSettings, userCoords: [number, number] | null) {
   const subscriptionRef = useRef<PushSubscription | null>(null);
+  const isInitialMount = useRef(true);
 
   const subscribe = useCallback(async () => {
-    if (!VAPID_PUBLIC_KEY) {
-      console.warn("[Push] No VAPID_PUBLIC_KEY — push disabled");
-      return;
-    }
-    if (!("serviceWorker" in navigator)) {
-      console.warn("[Push] No service worker support");
-      return;
-    }
-    if (!("PushManager" in window)) {
-      console.warn("[Push] No PushManager — not an installed PWA or unsupported browser");
-      return;
-    }
+    if (!VAPID_PUBLIC_KEY) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
 
     try {
       const registration = await navigator.serviceWorker.ready;
-      const existing = await registration.pushManager.getSubscription();
+      let subscription = await registration.pushManager.getSubscription();
 
-      if (existing) {
-        // If VAPID key changed, unsubscribe old and re-subscribe with new key
-        const existingKey = existing.options?.applicationServerKey;
+      if (subscription) {
+        const existingKey = subscription.options?.applicationServerKey;
         const currentKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
         const keysMatch =
           existingKey &&
           currentKey.length === new Uint8Array(existingKey).length &&
           currentKey.every((v, i) => v === new Uint8Array(existingKey)[i]);
 
-        if (keysMatch) {
-          subscriptionRef.current = existing;
-          await storeSubscription(existing);
-          return;
-        }
-
-        // Key mismatch — unsubscribe old subscription
-        console.log("[Push] VAPID key changed, re-subscribing...");
-        try {
-          await existing.unsubscribe();
-        } catch (err) {
-          console.warn("[Push] Old unsubscribe failed (continuing):", err);
+        if (!keysMatch) {
+          console.log("[Push] VAPID key mismatch, re-subscribing...");
+          await subscription.unsubscribe();
+          subscription = null;
         }
       }
 
-      // Only attempt subscribe if notification permission is already granted
-      if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
-        console.warn("[Push] Notification permission not granted:", Notification.permission);
-        return;
+      if (!subscription && settings.enabled) {
+        if (typeof Notification !== "undefined" && Notification.permission !== "granted") return;
+        
+        console.log("[Push] Creating new subscription...");
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+        });
       }
 
-      console.log("[Push] Creating new push subscription...");
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-      });
-
-      console.log("[Push] Subscription created, storing...");
-      subscriptionRef.current = subscription;
-      await storeSubscription(subscription);
-    } catch (err) {
-      console.error("[Push] Subscription failed:", err);
-    }
-  }, []);
-
-  const unsubscribe = useCallback(async () => {
-    try {
-      const sub = subscriptionRef.current;
-      if (sub) {
-        await removeSubscription(sub.endpoint);
-        await sub.unsubscribe();
-        subscriptionRef.current = null;
+      if (subscription) {
+        subscriptionRef.current = subscription;
+        if (settings.enabled) {
+            await storeSubscription(subscription, settings, userCoords);
+        } else {
+            // If we have a subscription but settings are disabled, remove it
+            await removeSubscription(subscription.endpoint);
+            await subscription.unsubscribe();
+            subscriptionRef.current = null;
+        }
       }
     } catch (err) {
-      console.warn("[Push] Unsubscribe failed:", err);
+      console.error("[Push] Subscription error:", err);
     }
-  }, []);
+  }, [settings, userCoords]);
 
+  // Initial check and subsequent toggles
   useEffect(() => {
-    if (notificationsEnabled && VAPID_PUBLIC_KEY) {
-      subscribe();
-    } else if (!notificationsEnabled) {
-      unsubscribe();
+    subscribe();
+  }, [settings.enabled, subscribe]);
+
+  // Periodic sync of settings/location
+  useEffect(() => {
+    if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
     }
-  }, [notificationsEnabled, subscribe, unsubscribe]);
+    if (settings.enabled && subscriptionRef.current) {
+      storeSubscription(subscriptionRef.current, settings, userCoords);
+    }
+  }, [settings, userCoords]);
 }

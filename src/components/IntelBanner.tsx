@@ -101,7 +101,7 @@ export default function IntelPanel({
   const toastIdCounter = useRef(0);
 
   const { settings, updateSettings, toggleCity, userCoords, permission, requestPermission } = useNotificationSettings();
-  usePushSubscription(settings.enabled);
+  usePushSubscription(settings, userCoords);
   const [cityList, setCityList] = useState<string[]>([]);
   const [citySearch, setCitySearch] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
@@ -361,7 +361,7 @@ export default function IntelPanel({
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#FF2A2A]/50" />
+              <span className="mt-1 flex-shrink-0 h-3 w-3 rounded-full bg-[#A80000]/50" />
               <div className="text-right">
                 <div className="text-[13px] font-bold text-white/90">להישאר בממ"ד</div>
                 <div className="text-[11px] text-white/60 leading-tight mt-0.5">יש להישאר בממרחב המוגן עד 10 דקות מקבלת ההתרעה (או עד להודעה אחרת).</div>
@@ -397,175 +397,212 @@ export default function IntelPanel({
                     <path d="M9 18l6-6-6-6" />
                   </svg>
                 </button>
-                <h3 className="text-base font-bold text-white/90">הגדרות התראות</h3>
+                <h3 className="text-base font-bold text-white/90">הגדרות</h3>
               </div>
 
-              <div className="space-y-4 flex-1 overflow-y-auto scrollbar-thin">
-                {/* Permission Warning */}
-                {permission === "denied" && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex gap-3 text-right">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-400 mt-0.5 flex-shrink-0">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    <p className="text-[11px] text-red-300 font-medium leading-normal">
-                      ההתראות חסומות בדפדפן. כדי לקבל עדכונים, יש לאפשר אותן בהגדרות האתר (לחיצה על המנעול בשורת הכתובת).
-                    </p>
+              <div className="space-y-4 flex-1 overflow-y-auto scrollbar-thin pb-4">
+                {/* Visual Settings Section */}
+                <div className="space-y-2.5">
+                  <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">תצוגה</div>
+                  
+                  {/* Theme Selector */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => onThemeChange("light")}
+                      className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "light"
+                        ? "bg-white/20 text-white border border-white/20"
+                        : "bg-white/5 text-white/40 hover:bg-white/10"
+                        }`}
+                    >
+                      <span className="text-[12px] font-medium">בוקר</span>
+                    </button>
+                    <button
+                      onClick={() => { onThemeChange("dark"); handleDarkSecretTap(); }}
+                      className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "dark"
+                        ? "bg-white/20 text-white border border-white/20"
+                        : "bg-white/5 text-white/40 hover:bg-white/10"
+                        }`}
+                    >
+                      <span className="text-[12px] font-medium">לילה</span>
+                    </button>
                   </div>
-                )}
 
-                {permission === "default" && settings.enabled && (
-                  <button
-                    onClick={requestPermission}
-                    className="w-full bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-xl p-3 text-[12px] font-bold animate-pulse text-center"
-                  >
-                    לחץ כאן לאישור התראות בדפדפן
-                  </button>
-                )}
-
-                {/* Main Notification Toggle */}
-                <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
-                  <div className="flex flex-col text-right">
-                    <span className="text-[13px] font-bold text-white">התראות דפדפן</span>
-                    <span className="text-[10px] text-white/40 leading-tight">קבל התראות גם כשהאפליקציה סגורה</span>
+                  {/* UAV Path Toggle */}
+                  <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex flex-col text-right">
+                      <span className="text-[13px] font-bold text-white">מסלול כטב"ם</span>
+                      <span className="text-[10px] text-white/40 leading-tight">הצגת מסלול טיסה משוער וחיזוי</span>
+                    </div>
+                    <button
+                      onClick={() => updateSettings({ showUavPath: !settings.showUavPath })}
+                      className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.showUavPath ? 'bg-purple-600' : 'bg-white/10'}`}
+                      dir="ltr"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.showUavPath ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                    </button>
                   </div>
-                  <button
-                    onClick={handleToggleMainNotifications}
-                    className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.enabled ? 'bg-blue-600' : 'bg-white/10'}`}
-                    dir="ltr"
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.enabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-                  </button>
+
+
                 </div>
 
-                {settings.enabled && (
-                  <>
-                    <div className="h-px bg-white/10 my-1" />
-                    
-                    {/* Early Alerts Toggle */}
-                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
-                      <div className="flex flex-col text-right">
-                        <span className="text-[13px] font-bold text-[#FF6A00]">התראות מוקדמות</span>
-                        <span className="text-[10px] text-white/40 leading-tight">הנחיות שהייה בסמוך למרחב מוגן</span>
-                      </div>
-                      <button
-                        onClick={() => updateSettings({ earlyAlerts: !settings.earlyAlerts })}
-                        className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.earlyAlerts ? 'bg-[#FF6A00]' : 'bg-white/10'}`}
-                        dir="ltr"
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.earlyAlerts ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-                      </button>
+                {/* Notifications Section */}
+                <div className="space-y-2.5 pt-2">
+                  <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">התראות</div>
+                  
+                  {/* Permission Warning */}
+                  {permission === "denied" && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex gap-3 text-right">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-400 mt-0.5 flex-shrink-0">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <p className="text-[11px] text-red-300 font-medium leading-normal">
+                        ההתראות חסומות בדפדפן. יש לאפשר אותן בהגדרות האתר.
+                      </p>
                     </div>
+                  )}
 
-                    {/* End of Alert Toggle */}
-                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
-                      <div className="flex flex-col text-right">
-                        <span className="text-[13px] font-bold text-green-400">חזרה לשגרה</span>
-                        <span className="text-[10px] text-white/40 leading-tight">התראה כשהזמן המוגדר בממ"ד עבר</span>
-                      </div>
-                      <button
-                        onClick={() => updateSettings({ leaveShelterAlerts: !settings.leaveShelterAlerts })}
-                        className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.leaveShelterAlerts ? 'bg-green-600' : 'bg-white/10'}`}
-                        dir="ltr"
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.leaveShelterAlerts ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-                      </button>
+                  {permission === "default" && settings.enabled && (
+                    <button
+                      onClick={requestPermission}
+                      className="w-full bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-xl p-3 text-[12px] font-bold animate-pulse text-center"
+                    >
+                      לחץ כאן לאישור התראות בדפדפן
+                    </button>
+                  )}
+
+                  {/* Main Notification Toggle */}
+                  <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex flex-col text-right">
+                      <span className="text-[13px] font-bold text-white">התראות דפדפן</span>
+                      <span className="text-[10px] text-white/40 leading-tight">קבל התראות גם כשהאפליקציה סגורה</span>
                     </div>
-
-                    <div className="h-px bg-white/10 my-1" />
-
-                    {/* Geolocation Toggle */}
-                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
-                      <div className="flex flex-col text-right">
-                        <span className="text-[13px] font-bold text-white">מיקום נוכחי</span>
-                        <span className="text-[10px] text-white/40 leading-tight">קבל התראות לפי המיקום שלך כעת</span>
-                      </div>
-                      <button
-                        onClick={() => updateSettings({ currentLocation: !settings.currentLocation })}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.currentLocation ? 'bg-green-600' : 'bg-white/10'}`}
-                        dir="ltr"
-                      >
-                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.currentLocation ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                      </button>
-                    </div>
-
-                    {/* All Israel vs Filtered */}
-                    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
-                      <div className="flex flex-col text-right">
-                        <span className="text-[13px] font-bold text-white">כל הארץ</span>
-                        <span className="text-[10px] text-white/40 leading-tight">קבל התראות מכל רחבי המדינה</span>
-                      </div>
-                      <button
-                        onClick={() => updateSettings({ allIsrael: !settings.allIsrael })}
-                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.allIsrael ? 'bg-purple-600' : 'bg-white/10'}`}
-                        dir="ltr"
-                      >
-                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.allIsrael ? 'translate-x-4.5' : 'translate-x-0'}`} />
-                      </button>
-                    </div>
-
-                    {/* City Selection (shown if All Israel is OFF) */}
-                    {!settings.allIsrael && (
-                      <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                        <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">אזורי עניין</div>
-                        
-                        {/* Search Input */}
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="חיפוש עיר/יישוב..."
-                            value={citySearch}
-                            onChange={(e) => setCitySearch(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-white/30"
-                          />
-                          {filteredCityOptions.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 z-[10] mt-1 bg-[#1a1c23] border border-white/10 rounded-lg shadow-xl overflow-hidden">
-                              {filteredCityOptions.map(city => (
-                                <button
-                                  key={city}
-                                  onClick={() => { toggleCity(city); setCitySearch(""); }}
-                                  className="w-full text-right px-3 py-2 text-[12px] text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0"
-                                >
-                                  {city}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Selected Cities List */}
-                        <div className="flex flex-wrap gap-1.5">
-                          {settings.selectedCities.length === 0 && !settings.currentLocation && (
-                            <p className="text-[10px] text-white/30 italic pr-1">לא נבחרו אזורים. הוסף עיר או אפשר מיקום.</p>
-                          )}
-                          {settings.selectedCities.map(city => (
-                            <div key={city} className="flex items-center gap-1.5 bg-white/10 border border-white/10 rounded-full pl-1.5 pr-2.5 py-1 transition-all">
-                              <span className="text-[11px] font-bold text-white/90">{city}</span>
-                              <button 
-                                onClick={() => toggleCity(city)}
-                                className="text-white/40 hover:text-white/90"
-                              >
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                  <line x1="18" y1="6" x2="6" y2="18" />
-                                  <line x1="6" y1="6" x2="18" y2="18" />
-                                </svg>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {settings.enabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 flex gap-2">
-                    <p className="text-[10px] text-red-300 leading-tight text-right">
-                      ההתראות חסומות בדפדפן. יש לאפשר אותן בהגדרות האתר (לחץ על המנעול בשורת הכתובת).
-                    </p>
+                    <button
+                      onClick={handleToggleMainNotifications}
+                      className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.enabled ? 'bg-blue-600' : 'bg-white/10'}`}
+                      dir="ltr"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.enabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                    </button>
                   </div>
-                )}
+
+                  {settings.enabled && (
+                    <>
+                      {/* Early Alerts Toggle */}
+                      <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                        <div className="flex flex-col text-right">
+                          <span className="text-[13px] font-bold text-[#FF6A00]">התראות מוקדמות</span>
+                          <span className="text-[10px] text-white/40 leading-tight">הנחיות שהייה בסמוך למרחב מוגן</span>
+                        </div>
+                        <button
+                          onClick={() => updateSettings({ earlyAlerts: !settings.earlyAlerts })}
+                          className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.earlyAlerts ? 'bg-[#FF6A00]' : 'bg-white/10'}`}
+                          dir="ltr"
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.earlyAlerts ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+
+                      {/* End of Alert Toggle */}
+                      <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                        <div className="flex flex-col text-right">
+                          <span className="text-[13px] font-bold text-green-400">חזרה לשגרה</span>
+                          <span className="text-[10px] text-white/40 leading-tight">התראה כשהזמן המוגדר בממ"ד עבר</span>
+                        </div>
+                        <button
+                          onClick={() => updateSettings({ leaveShelterAlerts: !settings.leaveShelterAlerts })}
+                          className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.leaveShelterAlerts ? 'bg-green-600' : 'bg-white/10'}`}
+                          dir="ltr"
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.leaveShelterAlerts ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+
+                      {/* Geolocation Toggle */}
+                      <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                        <div className="flex flex-col text-right">
+                          <span className="text-[13px] font-bold text-white">מיקום נוכחי</span>
+                          <span className="text-[10px] text-white/40 leading-tight">קבל התראות לפי המיקום שלך כעת</span>
+                        </div>
+                        <button
+                          onClick={() => updateSettings({ currentLocation: !settings.currentLocation })}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.currentLocation ? 'bg-green-600' : 'bg-white/10'}`}
+                          dir="ltr"
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.currentLocation ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+
+                      {/* All Israel vs Filtered */}
+                      <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                        <div className="flex flex-col text-right">
+                          <span className="text-[13px] font-bold text-white">כל הארץ</span>
+                          <span className="text-[10px] text-white/40 leading-tight">קבל התראות מכל רחבי המדינה</span>
+                        </div>
+                        <button
+                          onClick={() => updateSettings({ allIsrael: !settings.allIsrael })}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.allIsrael ? 'bg-purple-600' : 'bg-white/10'}`}
+                          dir="ltr"
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition duration-200 ease-in-out mt-0.5 ml-0.5 ${settings.allIsrael ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+
+                      {/* City Selection (shown if All Israel is OFF) */}
+                      {!settings.allIsrael && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                          <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">אזורי עניין</div>
+                          
+                          {/* Search Input */}
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="חיפוש עיר/יישוב..."
+                              value={citySearch}
+                              onChange={(e) => setCitySearch(e.target.value)}
+                              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-[13px] text-white focus:outline-none focus:border-white/30"
+                            />
+                            {filteredCityOptions.length > 0 && (
+                              <div className="absolute top-full left-0 right-0 z-[10] mt-1 bg-[#1a1c23] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                                {filteredCityOptions.map(city => (
+                                  <button
+                                    key={city}
+                                    onClick={() => { toggleCity(city); setCitySearch(""); }}
+                                    className="w-full text-right px-3 py-2 text-[12px] text-white/80 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0"
+                                  >
+                                    {city}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Selected Cities List */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {settings.selectedCities.length === 0 && !settings.currentLocation && (
+                              <p className="text-[10px] text-white/30 italic pr-1">לא נבחרו אזורים. הוסף עיר או אפשר מיקום.</p>
+                            )}
+                            {settings.selectedCities.map(city => (
+                              <div key={city} className="flex items-center gap-1.5 bg-white/10 border border-white/10 rounded-full pl-1.5 pr-2.5 py-1 transition-all">
+                                <span className="text-[11px] font-bold text-white/90">{city}</span>
+                                <button 
+                                  onClick={() => toggleCity(city)}
+                                  className="text-white/40 hover:text-white/90"
+                                >
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -604,33 +641,12 @@ export default function IntelPanel({
                       <path d="M10.343 3.94c.09-.542.56-.94 1.114-.94h1.086c.554 0 1.024.398 1.114.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.768.768a1.125 1.125 0 01.12 1.45l-.527.737a1.125 1.125 0 00.108 1.205c.166.396.506.71.93.78l.894.149c.542.09.94.56.94 1.114v1.086c0 .554-.398 1.024-.94 1.114l-.894.149a1.125 1.125 0 00-.93.78c-.164.398-.142.855.108 1.205l.527.738a1.125 1.125 0 01-.12 1.45l-.768.767a1.125 1.125 0 01-1.45.12l-.737-.527a1.125 1.125 0 00-1.205.108c-.396.166-.71.506-.78.93l-.149.894c-.09.542-.56.94-1.114.94h-1.086c-.554 0-1.024-.398-1.114-.94l-.149-.894a1.125 1.125 0 00-.78-.93c-.398-.164-.855-.142-1.205.108l-.738.527a1.125 1.125 0 01-1.45-.12l-.767-.768a1.125 1.125 0 01-.12-1.45l.527-.737a1.125 1.125 0 00-.108-1.205c-.166-.396-.506-.71-.93-.78l-.894-.149a1.125 1.125 0 01-.94-1.114v-1.086c0-.554.398-1.024.94-1.114l.894-.149c.424-.07.764-.384.93-.78.164-.398.142-.855-.108-1.205l-.527-.737a1.125 1.125 0 01.12-1.45l.768-.768a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.205.108.396-.166.71-.506.78-.93l.149-.894z" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
-                    <span className="text-[13px] font-bold">הגדרות התראות</span>
+                    <span className="text-[13px] font-bold">הגדרות</span>
                   </div>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-30">
                     <path d="M9 18l6-6-6-6" />
                   </svg>
                 </button>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => onThemeChange("light")}
-                    className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "light"
-                      ? "bg-white/20 text-white border border-white/20"
-                      : "bg-white/5 text-white/40 hover:bg-white/10"
-                      }`}
-                  >
-                    <span className="text-[12px] font-medium">בוקר</span>
-                  </button>
-                  <button
-                    onClick={() => { onThemeChange("dark"); handleDarkSecretTap(); }}
-                    className={`flex items-center justify-center gap-2 rounded-xl py-2 transition-all ${theme === "dark"
-                      ? "bg-white/20 text-white border border-white/20"
-                      : "bg-white/5 text-white/40 hover:bg-white/10"
-                      }`}
-                  >
-                    <span className="text-[12px] font-medium">לילה</span>
-                  </button>
-                </div>
 
                 {/* History button */}
                 {onModeChange && (

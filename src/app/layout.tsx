@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
 import { PwaRegistry } from "@/components/PwaRegistry";
+import { SettingsProvider } from "@/hooks/useNotificationSettings";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -61,8 +62,10 @@ export default function RootLayout({
         <meta property="og:logo" content="https://clearmap.co.il/logo-light-theme.png" />
       </head>
       <body>
-        <PwaRegistry />
-        {children}
+        <SettingsProvider>
+          <PwaRegistry />
+          {children}
+        </SettingsProvider>
         <Analytics />
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-913361R4FS" strategy="afterInteractive" />
         <Script id="google-analytics" strategy="afterInteractive">

@@ -4,7 +4,7 @@ const FIREBASE_DB_URL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL;
 
 export async function POST(req: Request) {
   try {
-    const { key, endpoint, keys } = await req.json();
+    const { key, endpoint, keys, settings, userCoords } = await req.json();
 
     if (!key || !endpoint || !keys) {
       return NextResponse.json(
@@ -18,7 +18,13 @@ export async function POST(req: Request) {
     const res = await fetch(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ endpoint, keys, created_at: Date.now() }),
+      body: JSON.stringify({ 
+        endpoint, 
+        keys, 
+        settings,
+        userCoords,
+        updated_at: Date.now() 
+      }),
     });
 
     if (!res.ok) {
