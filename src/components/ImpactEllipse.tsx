@@ -95,31 +95,46 @@ function centerIcon(color: string) {
 }
 
 /**
- * Compute an arrow line from center outward along a bearing.
+ * Compute a curved ballistic arrival path from far away.
+ * Points trace from the hypothetical launch origin to the impact center.
  */
-function computeArrowLine(
+function computeBallisticPath(
   center: [number, number],
-  bearingDeg: number,
-  lengthKm: number,
+  bearingFromCenterDeg: number,
+  baseLengthKm: number = 800,
 ): [number, number][] {
-  const bRad = toRad(bearingDeg);
-  const kmN = lengthKm * Math.cos(bRad);
-  const kmE = lengthKm * Math.sin(bRad);
-  const [dLat, dLng] = kmToLatLng(kmN, kmE, center[0]);
-  const endPoint: [number, number] = [center[0] + dLat, center[1] + dLng];
-
-  // Arrowhead wings
-  const wingLen = lengthKm * 0.2;
-  const wingAngle1 = bearingDeg + 150;
-  const wingAngle2 = bearingDeg - 150;
-
-  function wing(angle: number): [number, number] {
-    const r = toRad(angle);
-    const [dy, dx] = kmToLatLng(wingLen * Math.cos(r), wingLen * Math.sin(r), endPoint[0]);
-    return [endPoint[0] + dy, endPoint[1] + dx];
+  const points: [number, number][] = [];
+  const NUM_POINTS = 40;
+  
+  const bRad = toRad(bearingFromCenterDeg);
+  // Curve perpendicular to bearing (creates an arc sweeping "up" or "down" based on direction)
+  // For Iran (East), bearing is ~90. We want the arc to curve slightly North, so offset to the right.
+  const perpRad = bRad + Math.PI / 2;
+  
+  for (let i = 0; i <= NUM_POINTS; i++) {
+    // t goes from 0 (launch pt) to 1 (impact center)
+    const t = i / NUM_POINTS;
+    const tRev = 1 - t; // 1 at launch, 0 at center
+    
+    // Stretch the start point much further out
+    const distKm = baseLengthKm * tRev;
+    
+    // Create an arching offset based on a sine curve that peaks in the middle of the trajectory
+    const curveOffsetKm = Math.sin(tRev * Math.PI) * (baseLengthKm * 0.15); // 15% curve arch
+    
+    // Base line extending along bearing
+    const baseN = distKm * Math.cos(bRad);
+    const baseE = distKm * Math.sin(bRad);
+    
+    // Add perpendicular curve offset
+    const nN = baseN + curveOffsetKm * Math.cos(perpRad);
+    const nE = baseE + curveOffsetKm * Math.sin(perpRad);
+    
+    const [dLat, dLng] = kmToLatLng(nN, nE, center[0]);
+    points.push([center[0] + dLat, center[1] + dLng]);
   }
-
-  return [center, endPoint, wing(wingAngle1), endPoint, wing(wingAngle2)];
+  
+  return points;
 }
 
 export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllipse[] }) {
@@ -131,7 +146,7 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
     <>
       {ellipses.map((e) => {
         const colors = STATUS_COLORS[e.status] || STATUS_COLORS.alert;
-        const arrowPoints = computeArrowLine(e.center, e.launchBearingDeg, ARROW_LENGTH_KM);
+        const ballisticPoints = computeBallisticPath(e.center, e.launchBearingDeg, e.launchDistanceKm);
 
         return (
           <span key={e.id}>
@@ -163,11 +178,14 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
               >
                 <div dir="rtl" style={{ textAlign: "right", fontSize: "12px", lineHeight: "1.5" }}>
                   <strong>מוקד פגיעה משוער</strong><br />
+                  <span style={{ fontSize: "11px", color: "#ddd" }}>
+                    מקור ירי משוער: <span style={{ color: "#fff", fontWeight: "bold" }}>{e.launchSource}</span>
+                  </span><br />
                   <span style={{ fontSize: "10px", color: "#888" }}>
                     ציר: {e.semiMajorKm.toFixed(1)}×{e.semiMinorKm.toFixed(1)} ק&quot;מ
                   </span><br />
                   <span style={{ fontSize: "9px", color: "#aaa", fontStyle: "italic" }}>
-                    הערכה אוטומטית — אין להסתמך עליה
+                    הערכה אוטומטית לפי מרווח התרעות
                   </span>
                 </div>
               </Tooltip>
@@ -175,7 +193,7 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
 
             {/* Launch direction arrow */}
             <Polyline
-              positions={arrowPoints}
+              positions={ballisticPoints}
               pathOptions={{
                 color: colors.stroke,
                 weight: 2,

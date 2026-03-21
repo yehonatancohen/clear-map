@@ -12,6 +12,10 @@ export interface ImpactEllipse {
   majorAxisAngleDeg: number;
   /** Bearing toward estimated launch origin (degrees, 0 = north, clockwise) */
   launchBearingDeg: number;
+  /** Estimated distance from the center to the origin (km) */
+  launchDistanceKm: number;
+  /** Name of the estimated source (e.g. Lebanon, Iran) */
+  launchSource: string;
   /** Semi-major axis length in km */
   semiMajorKm: number;
   /** Semi-minor axis length in km */
@@ -22,7 +26,7 @@ export interface ImpactEllipse {
 
 const MIN_CITIES_FOR_ELLIPSE = 3;
 const ELLIPSE_POINTS = 64;
-const PADDING_FACTOR = 1.05;
+const PADDING_FACTOR = 1.0;
 /** Max distance (km) between two city centroids to be considered "touching" */
 const CLUSTER_DISTANCE_KM = 15;
 // Israel approximate center for launch direction heuristic
@@ -128,16 +132,31 @@ function pca2d(points: [number, number][]): { angleDeg: number; semiMajor: numbe
     angleDeg = cxx >= cyy ? 90 : 0;
   } else {
     const angleRad = Math.atan2(cxy, lambda1 - cyy);
-    angleDeg = toDeg(angleRad);
+    angleDeg = toDeg(angleRad) - 90;
   }
 
-  const semiMajor = Math.sqrt(lambda1) * PADDING_FACTOR;
-  const semiMinor = Math.sqrt(lambda2) * PADDING_FACTOR;
+  // To make it "very very close to the edge", we calculate the max projection of points
+  // onto the major and minor axes rather than just using standard deviation.
+  const rotRad = toRad(angleDeg);
+  const cosR = Math.cos(rotRad);
+  const sinR = Math.sin(rotRad);
+
+  let maxMajor = 0;
+  let maxMinor = 0;
+
+  for (const [dx, dy] of local) {
+    // Project local km onto the rotated axes
+    // rotation=0 means major is North (Y).
+    const pMajor = Math.abs(dx * sinR + dy * cosR);
+    const pMinor = Math.abs(dx * cosR - dy * sinR);
+    if (pMajor > maxMajor) maxMajor = pMajor;
+    if (pMinor > maxMinor) maxMinor = pMinor;
+  }
 
   return {
     angleDeg,
-    semiMajor: Math.max(semiMajor, 1),
-    semiMinor: Math.max(semiMinor, 0.5),
+    semiMajor: Math.max(maxMajor * 0.98, 1.0), // Tight fit, slightly under 1.0 to ensure it's not "bigger" than alert area
+    semiMinor: Math.max(maxMinor * 0.98, 0.6),
   };
 }
 
@@ -166,25 +185,76 @@ function generateEllipseRing(
 }
 
 /**
- * Pick the major axis direction that is NOT pointing west.
- * Attacks come from land (north, east, south) — never from the
- * Mediterranean Sea (west, roughly 240°-300°).
+ * Estimate launch origin distance and metadata based on stretch, orientation, and geographic heuristics.
  */
-function computeLaunchBearing(_center: [number, number], majorAxisAngleDeg: number): number {
+function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, semiMajorKm: number, semiMinorKm: number): { bearingDeg: number, distanceKm: number, source: string } {
   const bearing1 = ((majorAxisAngleDeg % 360) + 360) % 360;
   const bearing2 = (bearing1 + 180) % 360;
 
-  // "West" zone: bearings roughly 240°–300° (the Mediterranean side)
+  // Preference order: Lebanon (North) > East > Gaza (SW)
+  const isLebanonLat = center[0] > 32.9; // If cluster is very far North, default to Lebanon
+  const isCoastal = center[1] < 34.85; // Close to Mediterranean coast
+  
   function isWest(b: number) { return b >= 240 && b <= 300; }
+  let bearingDeg = bearing1;
 
-  // Prefer the bearing that is NOT pointing west
-  if (isWest(bearing1) && !isWest(bearing2)) return bearing2;
-  if (isWest(bearing2) && !isWest(bearing1)) return bearing1;
+  if (isLebanonLat) {
+      // For northern clusters, pick the vector that points most North (closest to 0 or 360)
+      const diff1 = Math.min(Math.abs(bearing1), Math.abs(bearing1 - 360));
+      const diff2 = Math.min(Math.abs(bearing2), Math.abs(bearing2 - 360));
+      bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
+  } else {
+    // If it's coastal, we are more lenient with West (sea) origins if the ellipse is stretched that way
+    if (isCoastal && (isWest(bearing1) || isWest(bearing2))) {
+        // Pick the one that points slightly more towards typical threat origins if both are sea/land mix
+        // But generally allow the math to pick the better fit.
+        const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
+        const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
+        bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
+    } else {
+        if (isWest(bearing1) && !isWest(bearing2)) bearingDeg = bearing2;
+        else if (isWest(bearing2) && !isWest(bearing1)) bearingDeg = bearing1;
+        else {
+            const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
+            const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
+            bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
+        }
+    }
+  }
 
-  // If both or neither are west, pick the one further from 270° (due west)
-  const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
-  const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
-  return diff1 >= diff2 ? bearing1 : bearing2;
+  const stretch = semiMajorKm / Math.max(semiMinorKm, 1);
+  let source = "מקור לא ידוע";
+  let distanceKm = 100;
+
+  // North (Lebanon/Syria)
+  if (bearingDeg >= 315 || bearingDeg <= 45 || (isLebanonLat && (bearingDeg >= 300 || bearingDeg <= 60))) {
+    source = "לבנון";
+    const distToBorderKm = Math.max(0, (33.1 - center[0]) * 111.32);
+    distanceKm = distToBorderKm + 20 + stretch * 15; 
+  }
+  // West (Mediterranean / Sea-based)
+  else if (isWest(bearingDeg)) {
+    source = "הים התיכון (שיגור ימי)";
+    distanceKm = 30 + stretch * 20;
+  }
+  // East (Iran/Iraq)
+  else if (bearingDeg > 45 && bearingDeg < 135) {
+    source = stretch > 3 ? "איראן" : "עיראק/סוריה";
+    // Vast distances for Eastern vectors
+    distanceKm = 1000 + stretch * 150;
+  }
+  // South/South-East (Yemen)
+  else if (bearingDeg >= 135 && bearingDeg <= 210) {
+    source = "תימן";
+    distanceKm = 1800 + stretch * 50; 
+  }
+  // South West / General local (Gaza/Sinai)
+  else {
+    source = "עזה/סיני";
+    distanceKm = 40 + stretch * 10;
+  }
+
+  return { bearingDeg, distanceKm, source };
 }
 
 /**
@@ -199,9 +269,9 @@ export function useImpactEllipses(
   return useMemo(() => {
     if (!polygons || alerts.length === 0) return [];
 
-    // Only compute for attack-related statuses
+    // Only compute for actual alerts (e.g. rockets), skip pre_alerts
     const relevant = alerts.filter(a =>
-      ["alert", "pre_alert", "terrorist"].includes(a.status)
+      a.status === "alert"
     );
     if (relevant.length < MIN_CITIES_FOR_ELLIPSE) return [];
 
@@ -230,11 +300,21 @@ export function useImpactEllipses(
     for (const cluster of clusters) {
       if (cluster.length < MIN_CITIES_FOR_ELLIPSE) continue;
 
-      const centroids = cluster.map(c => c.centroid);
-      const center_ = centroid(centroids);
-      const { angleDeg, semiMajor, semiMinor } = pca2d(centroids);
+      // Collect ALL points from ALL city polygons in the cluster to find the true spatial bounds
+      const allPoints: [number, number][] = [];
+      for (const item of cluster) {
+        const poly = polygons[item.cityName];
+        if (poly?.polygon) allPoints.push(...poly.polygon);
+      }
+      
+      if (allPoints.length < 3) continue;
+
+      const center_ = centroid(allPoints);
+      const { angleDeg, semiMajor, semiMinor } = pca2d(allPoints);
       const ellipseRing = generateEllipseRing(center_, semiMajor, semiMinor, angleDeg);
-      const launchBearingDeg = computeLaunchBearing(center_, angleDeg);
+      const { bearingDeg: launchBearingDeg, distanceKm: launchDistanceKm, source: launchSource } = estimateOrigin(
+        center_, angleDeg, semiMajor, semiMinor
+      );
 
       results.push({
         id: `ellipse_${cluster[0].status}_${cluster.map(c => c.cityName).join("_").slice(0, 30)}`,
@@ -242,6 +322,8 @@ export function useImpactEllipses(
         ellipseRing,
         majorAxisAngleDeg: angleDeg,
         launchBearingDeg,
+        launchDistanceKm,
+        launchSource,
         semiMajorKm: semiMajor,
         semiMinorKm: semiMinor,
         status: cluster[0].status,

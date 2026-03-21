@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { MapContainer, TileLayer, Polygon, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -143,7 +144,7 @@ function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
   };
 }
 
-export default function MapView() {
+export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean }) {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
   const mergedPolygons = useMergedPolygons(alerts, polygons);
@@ -157,7 +158,27 @@ export default function MapView() {
   const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<SortedAlert[]>([]);
 
   const { settings } = useNotificationSettings();
+  const searchParams = useSearchParams();
+  const rawUav = searchParams.get("uav");
+  const rawEllipse = searchParams.get("ellipse");
+  const showUav = isBroadcast && rawUav ? rawUav === "true" : settings.showUavPath;
+  const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : settings.showImpactZones;
+
   const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
+
+  const historyMappedAlerts = useMemo((): ActiveAlert[] => {
+    if (mode !== "history") return [];
+    return selectedBatchAlerts.map(a => ({
+      id: `h_${a._ts}_${a.data}`,
+      city_name: "",
+      city_name_he: a.data,
+      timestamp: a._ts,
+      is_double: false,
+      status: a.status || (a.category === 1 ? "alert" : a.category === 2 ? "uav" : "other"),
+    }));
+  }, [mode, selectedBatchAlerts]);
+
+  const historyImpactEllipses = useImpactEllipses(historyMappedAlerts, polygons);
 
   useEffect(() => {
     setSelectedBatchId(null);
@@ -210,17 +231,19 @@ export default function MapView() {
 
   return (
     <div id="map-root" ref={containerRef} className={`relative h-[100dvh] w-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
-      <IntelPanel
-        alerts={alerts}
-        onToggleFullscreen={toggleFullscreen}
-        isFullscreen={isFullscreen}
-        theme={theme}
-        onThemeChange={setTheme}
-        mode={mode}
-        onModeChange={setMode}
-      />
-      <LiveIndicator mode={mode} />
-      <PwaInstallBanner />
+      {!isBroadcast && (
+        <IntelPanel
+          alerts={alerts}
+          onToggleFullscreen={toggleFullscreen}
+          isFullscreen={isFullscreen}
+          theme={theme}
+          onThemeChange={setTheme}
+          mode={mode}
+          onModeChange={setMode}
+        />
+      )}
+      {!isBroadcast && <LiveIndicator mode={mode} />}
+      {!isBroadcast && <PwaInstallBanner />}
       <MapContainer
         center={ISRAEL_CENTER}
         zoom={DEFAULT_ZOOM}
@@ -246,8 +269,8 @@ export default function MapView() {
                 />
               ));
             })}
-            {settings.showUavPath && <UavFlightPath tracks={uavTracks} theme={theme} />}
-            {settings.showImpactZones && <ImpactEllipseLayer ellipses={impactEllipses} />}
+            {showUav && <UavFlightPath tracks={uavTracks} theme={theme} />}
+            {showEllipse && <ImpactEllipseLayer ellipses={impactEllipses} />}
           </>
         )}
 
@@ -255,12 +278,13 @@ export default function MapView() {
           <>
             <AlertFitter alerts={selectedBatchAlerts} polygons={polygons} isHistory />
             <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
+            {showEllipse && <ImpactEllipseLayer ellipses={historyImpactEllipses} />}
           </>
         )}
 
         <CityLabels polygons={polygons} theme={theme} />
       </MapContainer>
-      {mode === "history" && (
+      {!isBroadcast && mode === "history" && (
         <HistoryPanel
           batches={batches}
           loading={loading}

@@ -95,6 +95,7 @@ export default function IntelPanel({
   const [showAbout, setShowAbout] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTelegramInfo, setShowTelegramInfo] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [toasts, setToasts] = useState<(ActiveAlert & { toastId: number })[]>([]);
   const prevAlertIdsRef = useRef<Set<string>>(new Set(alerts.map(a => a.id)));
@@ -105,6 +106,9 @@ export default function IntelPanel({
   const [cityList, setCityList] = useState<string[]>([]);
   const [citySearch, setCitySearch] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
+
+  const [broadcastUav, setBroadcastUav] = useState(true);
+  const [broadcastEllipse, setBroadcastEllipse] = useState(false);
 
   const handleToggleMainNotifications = async () => {
     const next = !settings.enabled;
@@ -304,6 +308,19 @@ export default function IntelPanel({
           </button>
         )}
 
+        {/* History Toggle */}
+        {onModeChange && (
+          <button
+            onClick={() => { onModeChange(mode === "history" ? "live" : "history"); setShowAbout(false); setIsOpen(false); setShowSettings(false); setShowLegend(false); }}
+            className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${mode === "history" ? 'bg-blue-500/30 border border-blue-500/50' : ''}`}
+            title="היסטוריית התרעות"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={mode === "history" ? "text-blue-300" : "text-white/70"}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </button>
+        )}
+
         {/* Legend */}
         <button
           onClick={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); setShowSettings(false); }}
@@ -439,6 +456,36 @@ export default function IntelPanel({
                       dir="ltr"
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.showUavPath ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+
+                  {/* Impact Ellipse Toggle */}
+                  <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex flex-col text-right">
+                      <span className="text-[13px] font-bold text-white">אזור פגיעה משוער</span>
+                      <span className="text-[10px] text-white/40 leading-tight">הערכת אזור פגיעה אוטומטית לפי מיקומי התרעות</span>
+                    </div>
+                    <button
+                      onClick={() => updateSettings({ showImpactZones: !settings.showImpactZones })}
+                      className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.showImpactZones ? 'bg-red-600' : 'bg-white/10'}`}
+                      dir="ltr"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.showImpactZones ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+
+                  {/* Fullscreen Toggle */}
+                  <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex flex-col text-right">
+                      <span className="text-[13px] font-bold text-white">מסך מלא</span>
+                      <span className="text-[10px] text-white/40 leading-tight">הצגת המפה על פני כל המסך</span>
+                    </div>
+                    <button
+                      onClick={onToggleFullscreen}
+                      className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${isFullscreen ? 'bg-blue-600' : 'bg-white/10'}`}
+                      dir="ltr"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${isFullscreen ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
                     </button>
                   </div>
 
@@ -648,34 +695,19 @@ export default function IntelPanel({
                   </svg>
                 </button>
 
-                {/* History button */}
-                {onModeChange && (
-                  <button
-                    onClick={() => { onModeChange("history"); setShowAbout(false); }}
-                    className="flex items-center justify-center gap-2 w-full rounded-xl py-2 transition-all bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 border border-blue-500/20 active:scale-[0.98]"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M12 6v6l4 2" />
-                      <circle cx="12" cy="12" r="9" />
-                    </svg>
-                    <span className="text-[12px] font-bold">היסטוריה</span>
-                  </button>
-                )}
-
                 <button
-                  onClick={onToggleFullscreen}
-                  className="flex items-center justify-center gap-2 w-full rounded-xl py-2 transition-all bg-white/5 text-white/60 hover:bg-white/10 border border-white/10 active:scale-[0.98]"
+                  onClick={() => { setShowTelegramInfo(true); setShowAbout(false); }}
+                  className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] transition-all border border-[#0088cc]/20 shadow-lg active:scale-[0.98]"
                 >
-                  {isFullscreen ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M9 9L4 4m0 0v4m0-4h4m7 5l5-5m0 0v4m0-4h-4m-7 11l-5 5m0 0v-4m0 4h4m7-5l5 5m0 0v-4m0 4h-4" />
+                  <div className="flex items-center gap-3">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12l-18 12 4-12-4-12 18 12z" />
                     </svg>
-                  ) : (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                    </svg>
-                  )}
-                  <span className="text-[12px] font-medium">{isFullscreen ? "יציאה ממסך מלא" : "מסך מלא"}</span>
+                    <span className="text-[13px] font-bold">ערוצי כתבים וחדשות</span>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-30">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </button>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -698,6 +730,125 @@ export default function IntelPanel({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─── Telegram & News Explanation Panel ─── */}
+      {showTelegramInfo && (
+        <div
+          className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-96 glass-overlay max-w-sm max-h-[85vh] overflow-y-auto flex flex-col"
+          dir="rtl"
+        >
+          <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-2 flex-shrink-0">
+            <h3 className="text-base font-bold text-white/90">ערוצי כתבים וחדשות</h3>
+            <button 
+              onClick={() => setShowTelegramInfo(false)}
+              className="p-1 hover:bg-white/10 rounded-lg text-white/40"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="space-y-6 overflow-y-auto scrollbar-thin pb-2">
+            {/* Option 1: Broadcast */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="bg-blue-500/20 p-1.5 rounded-lg text-blue-400">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M15 10l5 5-5 5" />
+                    <path d="M4 4v7a4 4 0 004 4h12" />
+                  </svg>
+                </div>
+                <h4 className="text-[14px] font-bold text-white">שידור חי (Broadcast)</h4>
+              </div>
+              <p className="text-[12px] text-white/60 leading-relaxed pr-8">
+                קישור ייעודי לשידורים חיים, מותאם להטמעה בתוכנות שידור (OBS) או לתצוגה במסכים.
+              </p>
+              
+              <div className="pr-8 space-y-2">
+                <div className="flex items-center justify-between bg-white/5 rounded-lg p-2 border border-white/5">
+                  <span className="text-[11px] text-white/80">הצגת מסלול כטב"ם</span>
+                  <button
+                    onClick={() => setBroadcastUav(!broadcastUav)}
+                    dir="ltr"
+                    className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors ${broadcastUav ? 'bg-purple-600' : 'bg-white/10'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${broadcastUav ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between bg-white/5 rounded-lg p-2 border border-white/5">
+                  <span className="text-[11px] text-white/80">הצגת אזור פגיעה</span>
+                  <button
+                    onClick={() => setBroadcastEllipse(!broadcastEllipse)}
+                    dir="ltr"
+                    className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors ${broadcastEllipse ? 'bg-red-600' : 'bg-white/10'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${broadcastEllipse ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="pr-8">
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}/broadcast?uav=${broadcastUav}&ellipse=${broadcastEllipse}`;
+                    navigator.clipboard.writeText(url);
+                  }}
+                  className="w-full bg-blue-600/20 text-blue-400 border border-blue-600/30 rounded-xl py-2 text-[12px] font-bold hover:bg-blue-600/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                  העתק קישור שידור
+                </button>
+              </div>
+            </div>
+
+            {/* Option 2: Telegram Bot */}
+            <div className="space-y-3 pt-4 border-t border-white/5">
+              <div className="flex items-center gap-2">
+                <div className="bg-[#0088cc]/20 p-1.5 rounded-lg text-[#0088cc]">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 2L2 10l8 4 4 8 7-20z" />
+                  </svg>
+                </div>
+                <h4 className="text-[14px] font-bold text-white">בוט התרעות לערוצים</h4>
+              </div>
+              <p className="text-[12px] text-white/60 leading-relaxed pr-8">
+                ניתן להוסיף את הבוט שלנו <strong className="text-white">@ClearMapBot</strong> לערוץ הטלגרם שלכם לקבלת התרעות אוטומטיות.
+              </p>
+              
+              <div className="pr-8 space-y-2">
+                <div className="bg-white/5 rounded-xl p-3 border border-white/5 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="bg-white/10 text-white/70 text-[10px] h-4 w-4 flex items-center justify-center rounded-full flex-shrink-0 mt-0.5">1</span>
+                    <span className="text-[11px] text-white/80">הוסיפו את <strong className="text-white">@ClearMapBot</strong> כמנהל בערוץ.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="bg-white/10 text-white/70 text-[10px] h-4 w-4 flex items-center justify-center rounded-full flex-shrink-0 mt-0.5">2</span>
+                    <span className="text-[11px] text-white/80">כתבו בערוץ <code className="bg-white/10 px-1 rounded text-blue-300">/start</code> או <code className="bg-white/10 px-1 rounded text-blue-300">/register</code> להרשמה.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="bg-white/10 text-white/70 text-[10px] h-4 w-4 flex items-center justify-center rounded-full flex-shrink-0 mt-0.5">3</span>
+                    <span className="text-[11px] text-white/80">לביטול ההרשמה כתבו <code className="bg-white/10 px-1 rounded text-red-300">/stop</code> או <code className="bg-white/10 px-1 rounded text-red-300">/unsubscribe</code>.</span>
+                  </div>
+                </div>
+                
+                <a
+                  href="https://t.me/ClearMapBot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 rounded-xl py-2 text-[12px] font-bold hover:bg-[#0088cc]/30 transition-all flex items-center justify-center gap-2"
+                >
+                  מעבר לבוט
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -755,6 +906,18 @@ export default function IntelPanel({
                 <p className="text-white text-[12px]">כאן יופיעו עדכונים בזמן אמת</p>
               </div>
             )}
+          </div>
+
+          <div className="p-3 border-t border-white/5 bg-white/5">
+            <button
+              onClick={() => { setShowTelegramInfo(true); setIsOpen(false); }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 hover:bg-[#0088cc]/30 transition-all active:scale-[0.98]"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 12l-18 12 4-12-4-12 18 12z" />
+              </svg>
+              <span className="text-[13px] font-bold">ערוצי כתבים וחדשות</span>
+            </button>
           </div>
         </div>
       )}
