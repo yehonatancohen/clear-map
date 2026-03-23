@@ -8,6 +8,8 @@ export interface ImpactEllipse {
   center: [number, number];
   /** Ring of [lat, lng] points forming the ellipse */
   ellipseRing: [number, number][];
+  /** Ring of [lat, lng] points forming the smaller inner hit-area ellipse */
+  hitAreaRing: [number, number][];
   /** Rotation angle of major axis in degrees (0 = north, clockwise) */
   majorAxisAngleDeg: number;
   /** Bearing toward estimated launch origin (degrees, 0 = north, clockwise) */
@@ -27,6 +29,7 @@ export interface ImpactEllipse {
 const MIN_CITIES_FOR_ELLIPSE = 3;
 const ELLIPSE_POINTS = 64;
 const PADDING_FACTOR = 1.0;
+const HIT_AREA_SCALE = 0.25; // Inner hit-area ellipse is 25% the size of the outer ellipse
 /** Max distance (km) between two city centroids to be considered "touching" */
 const CLUSTER_DISTANCE_KM = 15;
 // Israel approximate center for launch direction heuristic
@@ -317,6 +320,7 @@ export function useImpactEllipses(
       const center_ = centroid(allPoints);
       const { angleDeg, semiMajor, semiMinor } = pca2d(allPoints);
       const ellipseRing = generateEllipseRing(center_, semiMajor, semiMinor, angleDeg);
+      const hitAreaRing = generateEllipseRing(center_, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, angleDeg);
       const { bearingDeg: launchBearingDeg, distanceKm: launchDistanceKm, source: launchSource } = estimateOrigin(
         center_, angleDeg, semiMajor, semiMinor
       );
@@ -325,6 +329,7 @@ export function useImpactEllipses(
         id: `ellipse_${cluster[0].status}_${cluster.map(c => c.cityName).join("_").slice(0, 30)}`,
         center: center_,
         ellipseRing,
+        hitAreaRing,
         majorAxisAngleDeg: angleDeg,
         launchBearingDeg,
         launchDistanceKm,

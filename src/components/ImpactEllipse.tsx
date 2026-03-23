@@ -162,16 +162,21 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
               }}
             />
 
-            {/* Center crosshair marker */}
-            <Marker
-              position={e.center}
-              icon={centerIcon(colors.stroke)}
-              interactive={true}
-              zIndexOffset={1100}
+            {/* Inner hit-area ellipse */}
+            <Polygon
+              positions={e.hitAreaRing}
+              pathOptions={{
+                color: colors.stroke,
+                weight: 2,
+                dashArray: "8, 6",
+                fillColor: colors.fill,
+                fillOpacity: 0.15,
+                opacity: 0.7,
+              }}
             >
               <Tooltip
                 direction="top"
-                offset={[0, -20]}
+                offset={[0, -8]}
                 className="impact-tooltip"
                 permanent={false}
               >
@@ -188,7 +193,15 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
                   </span>
                 </div>
               </Tooltip>
-            </Marker>
+            </Polygon>
+
+            {/* Center crosshair marker */}
+            <Marker
+              position={e.center}
+              icon={centerIcon(colors.stroke)}
+              interactive={false}
+              zIndexOffset={1100}
+            />
           </span>
         );
       })}
