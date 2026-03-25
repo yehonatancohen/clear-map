@@ -138,12 +138,10 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
     <>
        {ellipses.map((e) => {
         const colors = STATUS_COLORS[e.status] || STATUS_COLORS.alert;
-        const innerConfPct = Math.round((e.inner?.confidence ?? 0.5) * 100);
-        const outerConfPct = Math.round((e.outer?.confidence ?? 0.95) * 100);
 
         return (
           <span key={e.id}>
-            {/* Outer ellipse — alert zone coverage (dashed, very low fill) */}
+            {/* Outer ellipse */}
             <Polygon
               positions={e.ellipseRing}
               pathOptions={{
@@ -151,20 +149,21 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
                 weight: 2,
                 dashArray: "8, 6",
                 fillColor: colors.fill,
-                fillOpacity: 0.05,
+                fillOpacity: 0.08,
                 opacity: 0.7,
               }}
             />
 
-            {/* Inner ellipse — estimated impact zone (solid, higher fill) */}
+            {/* Inner hit-area ellipse */}
             <Polygon
               positions={e.hitAreaRing}
               pathOptions={{
                 color: colors.stroke,
                 weight: 2,
+                dashArray: "8, 6",
                 fillColor: colors.fill,
-                fillOpacity: 0.14,
-                opacity: 0.85,
+                fillOpacity: 0.15,
+                opacity: 0.7,
               }}
             >
               <Tooltip
@@ -174,15 +173,12 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
                 permanent={false}
               >
                 <div dir="rtl" style={{ textAlign: "right", fontSize: "12px", lineHeight: "1.5" }}>
-                  <strong>מוקד פגיעה משוער ({innerConfPct}% סבירות)</strong><br />
+                  <strong>מוקד פגיעה משוער</strong><br />
                   <span style={{ fontSize: "11px", color: "#ddd" }}>
                     מקור ירי משוער: <span style={{ color: "#fff", fontWeight: "bold" }}>{e.launchSource}</span>
                   </span><br />
                   <span style={{ fontSize: "10px", color: "#888" }}>
-                    ציר: {(e.inner?.semiMajorKm ?? e.sigmaMajorKm).toFixed(1)}×{(e.inner?.semiMinorKm ?? e.sigmaMinorKm).toFixed(1)} ק&quot;מ
-                  </span><br />
-                  <span style={{ fontSize: "10px", color: "#aaa" }}>
-                    טווח אפשרי ({outerConfPct}% סבירות)
+                    ציר: {e.semiMajorKm.toFixed(1)}×{e.semiMinorKm.toFixed(1)} ק&quot;מ
                   </span><br />
                   <span style={{ fontSize: "9px", color: "#aaa", fontStyle: "italic" }}>
                     הערכה אוטומטית לפי מרווח התרעות
