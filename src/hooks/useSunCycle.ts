@@ -63,11 +63,18 @@ export type SunPhase = "day" | "night" | "sunrise" | "sunset";
 interface SunCycleResult {
   phase: SunPhase;
   theme: "light" | "dark";
-  /** 0 = fully dark, 1 = fully light. Smoothly transitions during golden hour (~30 min). */
+  /** 0 = fully dark, 1 = fully light. Smoothly transitions during sunrise/sunset (~15 min). */
   dayFactor: number;
 }
 
-const TRANSITION_MINUTES = 30;
+const TRANSITION_MINUTES = 10;
+
+/** Steep sigmoid: snaps quickly between 0 and 1, minimizing time in the unreadable mid-opacity range.
+ *  At 30% linear → output ~0.02 (dark), at 70% linear → output ~0.98 (light). */
+function sharpStep(x: number): number {
+  const t = Math.max(0, Math.min(1, x));
+  return 1 / (1 + Math.exp(-16 * (t - 0.5)));
+}
 
 export function useSunCycle(enabled: boolean): SunCycleResult {
   const [result, setResult] = useState<SunCycleResult>({
@@ -96,30 +103,33 @@ export function useSunCycle(enabled: boolean): SunCycleResult {
       const ssStart = sunsetMs - transMs / 2;
       const ssEnd = sunsetMs + transMs / 2;
 
-      let dayFactor: number;
+      let linearFactor: number;
       let phase: SunPhase;
 
       if (nowMs < srStart) {
         // Before sunrise transition — night
-        dayFactor = 0;
+        linearFactor = 0;
         phase = "night";
       } else if (nowMs < srEnd) {
         // During sunrise transition
-        dayFactor = (nowMs - srStart) / (srEnd - srStart);
+        linearFactor = (nowMs - srStart) / (srEnd - srStart);
         phase = "sunrise";
       } else if (nowMs < ssStart) {
         // Full day
-        dayFactor = 1;
+        linearFactor = 1;
         phase = "day";
       } else if (nowMs < ssEnd) {
         // During sunset transition
-        dayFactor = 1 - (nowMs - ssStart) / (ssEnd - ssStart);
+        linearFactor = 1 - (nowMs - ssStart) / (ssEnd - ssStart);
         phase = "sunset";
       } else {
         // After sunset — night
-        dayFactor = 0;
+        linearFactor = 0;
         phase = "night";
       }
+
+      // Apply smoothstep so the map rushes through the unreadable mid-opacity range
+      const dayFactor = sharpStep(linearFactor);
 
       return {
         phase,
