@@ -288,16 +288,20 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<SortedAlert[]>([]);
 
   const { settings, userCoords } = useNotificationSettings();
-  const sunCycle = useSunCycle(settings.autoTheme);
   const searchParams = useSearchParams();
   const rawUav = searchParams.get("uav");
   const rawEllipse = searchParams.get("ellipse");
+  const rawTheme = searchParams.get("theme");
+
   const showUav = isBroadcast && rawUav ? rawUav === "true" : settings.showUavPath;
   const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : settings.showImpactZones;
   const showMyLocation = settings.showMyLocation && userCoords !== null;
 
-  // Auto theme: when enabled, sun cycle overrides manual selection
-  const effectiveTheme = settings.autoTheme ? sunCycle.theme : theme;
+  // Auto theme logic: URL param > Auto Theme setting > Manual theme
+  const sunCycle = useSunCycle(settings.autoTheme);
+  const effectiveTheme = isBroadcast && rawTheme === "dark" ? "dark" 
+    : isBroadcast && rawTheme === "light" ? "light"
+    : settings.autoTheme ? sunCycle.theme : theme;
 
   const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
 
