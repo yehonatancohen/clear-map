@@ -12,6 +12,7 @@ export interface NotificationSettings {
   showUavPath: boolean;
   showImpactZones: boolean;
   showMyLocation: boolean;
+  autoTheme: boolean;
 }
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   showUavPath: true,
   showImpactZones: false,
   showMyLocation: false,
+  autoTheme: false,
 };
 
 interface SettingsContextType {

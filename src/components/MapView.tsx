@@ -18,6 +18,7 @@ import { PwaInstallBanner } from "./PwaInstallBanner";
 import UavFlightPath from "./UavFlightPath";
 import { useUavTracks } from "@/hooks/useUavTracks";
 import { setMapInstance } from "@/lib/mapRef";
+import { useSunCycle } from "@/hooks/useSunCycle";
 import { ActiveAlert, UavTrack } from "@/types";
 import type { MapMode } from "./TimelineModeToggle";
 import TimelinePolygons from "./TimelinePolygons";
@@ -38,6 +39,19 @@ const LABELS = {
 };
 
 function ZoomListener() {
+  return null;
+}
+
+const TILE_FADE_STYLE_ID = "tile-crossfade-style";
+function TileCrossfadeStyle() {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (document.getElementById(TILE_FADE_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = TILE_FADE_STYLE_ID;
+    style.textContent = `.leaflet-tile-pane .leaflet-layer { transition: opacity 2s ease-in-out; }`;
+    document.head.appendChild(style);
+  }, []);
   return null;
 }
 
@@ -269,12 +283,16 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<SortedAlert[]>([]);
 
   const { settings, userCoords } = useNotificationSettings();
+  const sunCycle = useSunCycle(settings.autoTheme);
   const searchParams = useSearchParams();
   const rawUav = searchParams.get("uav");
   const rawEllipse = searchParams.get("ellipse");
   const showUav = isBroadcast && rawUav ? rawUav === "true" : settings.showUavPath;
   const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : settings.showImpactZones;
   const showMyLocation = settings.showMyLocation && userCoords !== null;
+
+  // Auto theme: when enabled, sun cycle overrides manual selection
+  const effectiveTheme = settings.autoTheme ? sunCycle.theme : theme;
 
   const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
 
@@ -342,13 +360,13 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   }, []);
 
   return (
-    <div id="map-root" ref={containerRef} className={`relative h-[100dvh] w-screen transition-colors duration-500 ${theme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
+    <div id="map-root" ref={containerRef} className={`relative h-[100dvh] w-screen transition-colors duration-500 ${effectiveTheme === "dark" ? "bg-gray-950" : "bg-gray-100"}`}>
       {!isBroadcast && (
         <IntelPanel
           alerts={alerts}
           onToggleFullscreen={toggleFullscreen}
           isFullscreen={isFullscreen}
-          theme={theme}
+          theme={effectiveTheme}
           onThemeChange={setTheme}
           mode={mode}
           onModeChange={setMode}
@@ -364,7 +382,15 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
       >
         <ZoomListener />
         <MapRefSetter />
-        <TileLayer url={THEMES[theme]} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
+        <TileCrossfadeStyle />
+        {/* Base: dark tiles always present */}
+        <TileLayer url={THEMES.dark} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
+        {/* Light tiles on top — opacity controls the blend */}
+        <TileLayer
+          url={THEMES.light}
+          opacity={settings.autoTheme ? sunCycle.dayFactor : effectiveTheme === "light" ? 1 : 0}
+          crossOrigin="anonymous"
+        />
 
         {mode === "live" && (
           <>
@@ -381,7 +407,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
                 />
               ));
             })}
-            {showUav && <UavFlightPath tracks={uavTracks} theme={theme} />}
+            {showUav && <UavFlightPath tracks={uavTracks} theme={effectiveTheme} />}
             {showEllipse && <ImpactEllipseLayer ellipses={impactEllipses} />}
             {showMyLocation && <UserLocationMarker coords={userCoords!} />}
           </>
@@ -395,7 +421,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           </>
         )}
 
-        <CityLabels polygons={polygons} theme={theme} />
+        <CityLabels polygons={polygons} theme={effectiveTheme} />
       </MapContainer>
       {!isBroadcast && mode === "history" && (
         <HistoryPanel
