@@ -474,6 +474,21 @@ export default function IntelPanel({
                     </button>
                   </div>
 
+                  {/* My Location Toggle */}
+                  <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex flex-col text-right">
+                      <span className="text-[13px] font-bold text-white">המיקום שלי</span>
+                      <span className="text-[10px] text-white/40 leading-tight">הצגת מיקום נוכחי ומרכוז בעת התרעה באזורך</span>
+                    </div>
+                    <button
+                      onClick={() => updateSettings({ showMyLocation: !settings.showMyLocation })}
+                      className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.showMyLocation ? 'bg-blue-600' : 'bg-white/10'}`}
+                      dir="ltr"
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${settings.showMyLocation ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+
                   {/* Fullscreen Toggle */}
                   <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
                     <div className="flex flex-col text-right">

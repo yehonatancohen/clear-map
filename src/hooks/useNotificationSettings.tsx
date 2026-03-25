@@ -11,6 +11,7 @@ export interface NotificationSettings {
   selectedCities: string[];
   showUavPath: boolean;
   showImpactZones: boolean;
+  showMyLocation: boolean;
 }
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -22,6 +23,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   selectedCities: [],
   showUavPath: true,
   showImpactZones: false,
+  showMyLocation: false,
 };
 
 interface SettingsContextType {
@@ -61,9 +63,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("notification_settings_v2", JSON.stringify(settings));
   }, [settings]);
 
-  // Geolocation logic
+  // Geolocation logic — activate when either setting needs location
+  const needsLocation = settings.currentLocation || settings.showMyLocation;
   useEffect(() => {
-    if (settings.currentLocation && "geolocation" in navigator) {
+    if (needsLocation && "geolocation" in navigator) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => setUserCoords([pos.coords.latitude, pos.coords.longitude]),
         (err) => console.error("Geolocation error", err),
@@ -73,7 +76,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     } else {
       setUserCoords(null);
     }
-  }, [settings.currentLocation]);
+  }, [needsLocation]);
 
   const updateSettings = useCallback((updates: Partial<NotificationSettings>) => {
     setSettings((prev) => ({ ...prev, ...updates }));

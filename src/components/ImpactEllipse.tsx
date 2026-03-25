@@ -105,35 +105,27 @@ function computeBallisticPath(
 ): [number, number][] {
   const points: [number, number][] = [];
   const NUM_POINTS = 40;
-  
+
   const bRad = toRad(bearingFromCenterDeg);
-  // Curve perpendicular to bearing (creates an arc sweeping "up" or "down" based on direction)
-  // For Iran (East), bearing is ~90. We want the arc to curve slightly North, so offset to the right.
   const perpRad = bRad + Math.PI / 2;
-  
+
   for (let i = 0; i <= NUM_POINTS; i++) {
-    // t goes from 0 (launch pt) to 1 (impact center)
     const t = i / NUM_POINTS;
-    const tRev = 1 - t; // 1 at launch, 0 at center
-    
-    // Stretch the start point much further out
+    const tRev = 1 - t;
+
     const distKm = baseLengthKm * tRev;
-    
-    // Create an arching offset based on a sine curve that peaks in the middle of the trajectory
-    const curveOffsetKm = Math.sin(tRev * Math.PI) * (baseLengthKm * 0.15); // 15% curve arch
-    
-    // Base line extending along bearing
+    const curveOffsetKm = Math.sin(tRev * Math.PI) * (baseLengthKm * 0.15);
+
     const baseN = distKm * Math.cos(bRad);
     const baseE = distKm * Math.sin(bRad);
-    
-    // Add perpendicular curve offset
+
     const nN = baseN + curveOffsetKm * Math.cos(perpRad);
     const nE = baseE + curveOffsetKm * Math.sin(perpRad);
-    
+
     const [dLat, dLng] = kmToLatLng(nN, nE, center[0]);
     points.push([center[0] + dLat, center[1] + dLng]);
   }
-  
+
   return points;
 }
 
@@ -146,10 +138,12 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
     <>
        {ellipses.map((e) => {
         const colors = STATUS_COLORS[e.status] || STATUS_COLORS.alert;
+        const innerConfPct = Math.round((e.inner?.confidence ?? 0.5) * 100);
+        const outerConfPct = Math.round((e.outer?.confidence ?? 0.95) * 100);
 
         return (
           <span key={e.id}>
-            {/* Ellipse outline */}
+            {/* Outer ellipse — alert zone coverage (dashed, very low fill) */}
             <Polygon
               positions={e.ellipseRing}
               pathOptions={{
@@ -157,21 +151,20 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
                 weight: 2,
                 dashArray: "8, 6",
                 fillColor: colors.fill,
-                fillOpacity: 0.08,
+                fillOpacity: 0.05,
                 opacity: 0.7,
               }}
             />
 
-            {/* Inner hit-area ellipse */}
+            {/* Inner ellipse — estimated impact zone (solid, higher fill) */}
             <Polygon
               positions={e.hitAreaRing}
               pathOptions={{
                 color: colors.stroke,
                 weight: 2,
-                dashArray: "8, 6",
                 fillColor: colors.fill,
-                fillOpacity: 0.15,
-                opacity: 0.7,
+                fillOpacity: 0.14,
+                opacity: 0.85,
               }}
             >
               <Tooltip
@@ -181,12 +174,15 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
                 permanent={false}
               >
                 <div dir="rtl" style={{ textAlign: "right", fontSize: "12px", lineHeight: "1.5" }}>
-                  <strong>מוקד פגיעה משוער</strong><br />
+                  <strong>מוקד פגיעה משוער ({innerConfPct}% סבירות)</strong><br />
                   <span style={{ fontSize: "11px", color: "#ddd" }}>
                     מקור ירי משוער: <span style={{ color: "#fff", fontWeight: "bold" }}>{e.launchSource}</span>
                   </span><br />
                   <span style={{ fontSize: "10px", color: "#888" }}>
-                    ציר: {e.semiMajorKm.toFixed(1)}×{e.semiMinorKm.toFixed(1)} ק&quot;מ
+                    ציר: {(e.inner?.semiMajorKm ?? e.sigmaMajorKm).toFixed(1)}×{(e.inner?.semiMinorKm ?? e.sigmaMinorKm).toFixed(1)} ק&quot;מ
+                  </span><br />
+                  <span style={{ fontSize: "10px", color: "#aaa" }}>
+                    טווח אפשרי ({outerConfPct}% סבירות)
                   </span><br />
                   <span style={{ fontSize: "9px", color: "#aaa", fontStyle: "italic" }}>
                     הערכה אוטומטית לפי מרווח התרעות

@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { MapContainer, TileLayer, Polygon, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Polygon, Marker, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -54,11 +54,14 @@ function AlertFitter({
   polygons,
   uavTracks,
   isHistory = false,
+  userCoords,
 }: {
   alerts: ActiveAlert[] | SortedAlert[];
   polygons: PolygonLookup | null;
   uavTracks?: UavTrack[];
   isHistory?: boolean;
+  /** When set, include user position in bounds if alerts are nearby. */
+  userCoords?: [number, number] | null;
 }) {
   const map = useMap();
   const prevIdsRef = useRef<string>("");
@@ -74,6 +77,39 @@ function AlertFitter({
     if (currentIds === prevIdsRef.current) return;
     prevIdsRef.current = currentIds;
 
+    // When user location is active, check if any alert is nearby.
+    // If so, fit only to nearby alerts + user position (ignore distant alerts).
+    if (userCoords) {
+      const nearbyCoords: [number, number][] = [userCoords];
+      for (const a of alerts) {
+        const name = "city_name_he" in a ? a.city_name_he : (a as SortedAlert).data;
+        const status = "city_name_he" in a ? (a as ActiveAlert).status : "alert";
+        if (status !== "alert" && status !== "pre_alert" && status !== "uav" && status !== "terrorist") continue;
+        const poly = polygons[name];
+        if (!poly?.polygon || poly.polygon.length === 0) continue;
+        const cLat = poly.polygon.reduce((s: number, p: [number, number]) => s + p[0], 0) / poly.polygon.length;
+        const cLng = poly.polygon.reduce((s: number, p: [number, number]) => s + p[1], 0) / poly.polygon.length;
+        if (haversineKm(userCoords, [cLat, cLng]) <= NEARBY_RADIUS_KM) {
+          nearbyCoords.push(...poly.polygon);
+        }
+      }
+
+      // If there are nearby alerts, fit to user area only
+      if (nearbyCoords.length > 1) {
+        const bounds = L.latLngBounds(nearbyCoords.map(([lat, lng]) => L.latLng(lat, lng)));
+        const isMobile = window.innerWidth < 640;
+        map.fitBounds(bounds, {
+          paddingTopLeft: [20, isMobile ? 80 : 50],
+          paddingBottomRight: [20, 50],
+          maxZoom: 13,
+          animate: true,
+          duration: 0.8,
+        });
+        return;
+      }
+    }
+
+    // Default: fit to all alerts + UAV tracks
     const allCoords: [number, number][] = [];
     for (const cityName of cityNames) {
       const poly = polygons[cityName];
@@ -109,9 +145,84 @@ function AlertFitter({
       animate: true,
       duration: 0.8,
     });
-  }, [alerts, polygons, uavTracks, isHistory, map]);
+  }, [alerts, polygons, uavTracks, isHistory, userCoords, map]);
 
   return null;
+}
+
+const USER_LOCATION_STYLE_ID = "user-location-styles";
+function ensureUserLocationStyles() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(USER_LOCATION_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = USER_LOCATION_STYLE_ID;
+  style.textContent = `
+    @keyframes user-loc-pulse {
+      0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+      100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+    }
+    .user-loc-dot {
+      position: relative;
+      width: 16px; height: 16px;
+    }
+    .user-loc-dot::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px; height: 12px;
+      background: #4285F4;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 6px rgba(66,133,244,0.5);
+      z-index: 2;
+    }
+    .user-loc-dot::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px; height: 12px;
+      background: rgba(66,133,244,0.4);
+      border-radius: 50%;
+      animation: user-loc-pulse 2s ease-out infinite;
+      z-index: 1;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+const userLocationIcon = L.divIcon({
+  className: "",
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+  html: '<div class="user-loc-dot"></div>',
+});
+
+/** Show a blue dot at the user's GPS position. */
+function UserLocationMarker({ coords }: { coords: [number, number] }) {
+  useEffect(() => { ensureUserLocationStyles(); }, []);
+  return (
+    <Marker
+      position={coords}
+      icon={userLocationIcon}
+      interactive={false}
+      zIndexOffset={900}
+    />
+  );
+}
+
+/** Proximity radius (km) — if any alert centroid is within this distance, consider user "in the area". */
+const NEARBY_RADIUS_KM = 30;
+
+function haversineKm(a: [number, number], b: [number, number]): number {
+  const R = 6371;
+  const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+  const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+  const sin2Lat = Math.sin(dLat / 2) ** 2;
+  const sin2Lng = Math.sin(dLng / 2) ** 2;
+  const h = sin2Lat + Math.cos((a[0] * Math.PI) / 180) * Math.cos((b[0] * Math.PI) / 180) * sin2Lng;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
 
 function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
@@ -157,12 +268,13 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedBatchAlerts, setSelectedBatchAlerts] = useState<SortedAlert[]>([]);
 
-  const { settings } = useNotificationSettings();
+  const { settings, userCoords } = useNotificationSettings();
   const searchParams = useSearchParams();
   const rawUav = searchParams.get("uav");
   const rawEllipse = searchParams.get("ellipse");
   const showUav = isBroadcast && rawUav ? rawUav === "true" : settings.showUavPath;
   const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : settings.showImpactZones;
+  const showMyLocation = settings.showMyLocation && userCoords !== null;
 
   const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
 
@@ -256,7 +368,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
 
         {mode === "live" && (
           <>
-            <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} />
+            <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} userCoords={showMyLocation ? userCoords : null} />
             {mergedPolygons.map((mp) => {
               const hasNewCity = mp.city_names_he.some((name) =>
                 newAlertIds.has(`alert_${name}`),
@@ -271,6 +383,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
             })}
             {showUav && <UavFlightPath tracks={uavTracks} theme={theme} />}
             {showEllipse && <ImpactEllipseLayer ellipses={impactEllipses} />}
+            {showMyLocation && <UserLocationMarker coords={userCoords!} />}
           </>
         )}
 

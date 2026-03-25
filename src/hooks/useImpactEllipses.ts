@@ -2,13 +2,21 @@ import { useMemo } from "react";
 import { ActiveAlert } from "@/types";
 import { PolygonLookup } from "./usePolygons";
 
+/* ── Confidence ellipse types ─────────────────────────────────────────────── */
+
+export interface ConfidenceEllipse {
+  confidence: number;
+  semiMajorKm: number;
+  semiMinorKm: number;
+}
+
 export interface ImpactEllipse {
   id: string;
   /** Estimated hit center [lat, lng] */
   center: [number, number];
-  /** Ring of [lat, lng] points forming the ellipse */
+  /** Ring of [lat, lng] points forming the outer (alert zone) ellipse */
   ellipseRing: [number, number][];
-  /** Ring of [lat, lng] points forming the smaller inner hit-area ellipse */
+  /** Ring of [lat, lng] points forming the inner (impact zone) ellipse */
   hitAreaRing: [number, number][];
   /** Rotation angle of major axis in degrees (0 = north, clockwise) */
   majorAxisAngleDeg: number;
@@ -18,23 +26,40 @@ export interface ImpactEllipse {
   launchDistanceKm: number;
   /** Name of the estimated source (e.g. Lebanon, Iran) */
   launchSource: string;
-  /** Semi-major axis length in km */
-  semiMajorKm: number;
-  /** Semi-minor axis length in km */
-  semiMinorKm: number;
+  /** Raw 1σ semi-major axis in km (≈39.3% confidence for 2D) */
+  sigmaMajorKm: number;
+  /** Raw 1σ semi-minor axis in km */
+  sigmaMinorKm: number;
+  /** Outer ellipse (alert zone coverage) */
+  outer: ConfidenceEllipse;
+  /** Inner ellipse (estimated impact zone) */
+  inner: ConfidenceEllipse;
   /** Alert status color key */
   status: string;
 }
 
+/* ── Constants ────────────────────────────────────────────────────────────── */
+
 const MIN_CITIES_FOR_ELLIPSE = 3;
 const ELLIPSE_POINTS = 64;
-const PADDING_FACTOR = 1.0;
-const HIT_AREA_SCALE = 0.25; // Inner hit-area ellipse is 25% the size of the outer ellipse
 /** Max distance (km) between two city centroids to be considered "touching" */
 const CLUSTER_DISTANCE_KM = 15;
+const MIN_AXIS_RATIO = 1.5;
+const OUTER_CONFIDENCE = 0.95;
+const INNER_CONFIDENCE = 0.50;
+const OUTER_PADDING = 1.05; // 5% padding to cover polygon edges
+
 // Israel approximate center for launch direction heuristic
 const ISRAEL_CENTER_LAT = 31.5;
 const ISRAEL_CENTER_LNG = 34.8;
+
+/* ── Chi-squared confidence scaling ───────────────────────────────────────── */
+
+function chi2Scale(confidence: number): number {
+  return Math.sqrt(-2.0 * Math.log(1.0 - confidence));
+}
+
+/* ── Geometry helpers ─────────────────────────────────────────────────────── */
 
 function toRad(deg: number) { return (deg * Math.PI) / 180; }
 function toDeg(rad: number) { return (rad * 180) / Math.PI; }
@@ -62,6 +87,22 @@ function haversineKm(a: [number, number], b: [number, number]): number {
   const sin2Lng = Math.sin(dLng / 2) ** 2;
   const h = sin2Lat + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * sin2Lng;
   return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Smallest angular difference between two bearings (0–180). */
+function angleDiff(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/** Estimate the "radius" of a city polygon as average distance from centroid to boundary. */
+function estimatePolygonRadiusKm(polygon: [number, number][]): number {
+  const c = centroid(polygon);
+  let totalDist = 0;
+  for (const pt of polygon) {
+    totalDist += haversineKm(c, pt);
+  }
+  return Math.max(totalDist / polygon.length, 0.5);
 }
 
 /**
@@ -103,33 +144,118 @@ function clusterCentroids(
   return Array.from(groups.values()).map(indices => indices.map(i => items[i]));
 }
 
+/* ── Weighted projection data ─────────────────────────────────────────────── */
+
+interface CityData {
+  cityName: string;
+  centroid: [number, number];
+  radiusKm: number;
+  polygon: [number, number][];
+}
+
+interface WeightedPoint {
+  dx: number; // East km offset from center
+  dy: number; // North km offset from center
+  w: number;  // inverse-radius-squared weight
+}
+
+interface WeightedProjection {
+  center: [number, number];
+  points: WeightedPoint[];
+  totalWeight: number;
+}
+
 /**
- * 2D PCA on [lat, lng] points (in local km coordinates).
+ * Compute weighted centroid and project all boundary points to local km coordinates.
+ * Each boundary point is weighted by its parent city's inverse-radius-squared.
  */
-function pca2d(points: [number, number][]): { angleDeg: number; semiMajor: number; semiMinor: number } {
-  const center_ = centroid(points);
-
-  const local: [number, number][] = points.map(([lat, lng]) => {
-    const dy = (lat - center_[0]) * 111.32;
-    const dx = (lng - center_[1]) * 111.32 * Math.cos(toRad(center_[0]));
-    return [dx, dy];
+function prepareWeightedProjection(cityData: CityData[]): WeightedProjection {
+  // Weighted centroid using city centroids
+  const cityWeights = cityData.map(c => {
+    const r = Math.max(c.radiusKm, 0.5);
+    return 1.0 / (r * r);
   });
+  const totalCityWeight = cityWeights.reduce((a, b) => a + b, 0);
 
-  let cxx = 0, cxy = 0, cyy = 0;
-  for (const [x, y] of local) {
-    cxx += x * x;
-    cxy += x * y;
-    cyy += y * y;
+  const wCenterLat = cityData.reduce((sum, c, i) => sum + cityWeights[i] * c.centroid[0], 0) / totalCityWeight;
+  const wCenterLng = cityData.reduce((sum, c, i) => sum + cityWeights[i] * c.centroid[1], 0) / totalCityWeight;
+
+  // Project all boundary points with parent city weights
+  const points: WeightedPoint[] = [];
+  let totalWeight = 0;
+
+  for (let ci = 0; ci < cityData.length; ci++) {
+    const city = cityData[ci];
+    const w = cityWeights[ci];
+    for (const [lat, lng] of city.polygon) {
+      const dy = (lat - wCenterLat) * 111.32;
+      const dx = (lng - wCenterLng) * 111.32 * Math.cos(toRad(wCenterLat));
+      points.push({ dx, dy, w });
+      totalWeight += w;
+    }
   }
-  const n = local.length;
-  cxx /= n; cxy /= n; cyy /= n;
 
+  return { center: [wCenterLat, wCenterLng], points, totalWeight };
+}
+
+/* ── Free PCA (for initial angle estimation) ──────────────────────────────── */
+
+interface FreePcaResult {
+  angleDeg: number;
+  sigmaMajor: number;
+  sigmaMinor: number;
+}
+
+/**
+ * Free (unconstrained) PCA on weighted points.
+ * Returns the eigenvector angle and 1σ semi-axes.
+ * Used as initial estimate to feed into estimateOrigin.
+ */
+function freePca(proj: WeightedProjection): FreePcaResult {
+  const { points, totalWeight } = proj;
+
+  // Weighted mean in projected space
+  let wmx = 0, wmy = 0;
+  for (const p of points) {
+    wmx += (p.w / totalWeight) * p.dx;
+    wmy += (p.w / totalWeight) * p.dy;
+  }
+
+  // Weighted covariance matrix
+  let cxx = 0, cxy = 0, cyy = 0;
+  for (const p of points) {
+    const nw = p.w / totalWeight;
+    const ddx = p.dx - wmx;
+    const ddy = p.dy - wmy;
+    cxx += nw * ddx * ddx;
+    cxy += nw * ddx * ddy;
+    cyy += nw * ddy * ddy;
+  }
+
+  // Bessel-like correction
+  let sumNw2 = 0;
+  for (const p of points) {
+    const nw = p.w / totalWeight;
+    sumNw2 += nw * nw;
+  }
+  const correction = 1.0 - sumNw2;
+  if (correction > 1e-12) {
+    cxx /= correction;
+    cxy /= correction;
+    cyy /= correction;
+  }
+
+  // Eigenvalues
   const trace = cxx + cyy;
   const det = cxx * cyy - cxy * cxy;
   const disc = Math.sqrt(Math.max(0, (trace * trace) / 4 - det));
   const lambda1 = trace / 2 + disc;
-  const lambda2 = Math.max(0.001, trace / 2 - disc);
+  const lambda2 = Math.max(0, trace / 2 - disc);
 
+  const sigmaMajor = Math.sqrt(Math.max(lambda1, 0.001));
+  const sigmaMinor = Math.sqrt(Math.max(lambda2, 0.001));
+
+  // Eigenvector direction → angle from North
   let angleDeg: number;
   if (Math.abs(cxy) < 1e-10) {
     angleDeg = cxx >= cyy ? 90 : 0;
@@ -138,31 +264,107 @@ function pca2d(points: [number, number][]): { angleDeg: number; semiMajor: numbe
     angleDeg = toDeg(angleRad) - 90;
   }
 
-  // To make it "very very close to the edge", we calculate the max projection of points
-  // onto the major and minor axes rather than just using standard deviation.
-  const rotRad = toRad(angleDeg);
-  const cosR = Math.cos(rotRad);
-  const sinR = Math.sin(rotRad);
+  return { angleDeg, sigmaMajor, sigmaMinor };
+}
 
-  let maxMajor = 0;
-  let maxMinor = 0;
+/* ── Trajectory-locked sigma ──────────────────────────────────────────────── */
 
-  for (const [dx, dy] of local) {
-    // Inverse rotation: project world (dx,dy) back to ellipse local axes.
-    // In generateEllipseRing, major axis (localY) maps to (-sinR, cosR) in world.
-    // So the inverse is: localY = -dx*sinR + dy*cosR,  localX = dx*cosR + dy*sinR.
-    const pMajor = Math.abs(-dx * sinR + dy * cosR);
-    const pMinor = Math.abs(dx * cosR + dy * sinR);
-    if (pMajor > maxMajor) maxMajor = pMajor;
-    if (pMinor > maxMinor) maxMinor = pMinor;
+/**
+ * Project weighted points onto trajectory-locked axes and compute weighted
+ * variance along each. The major axis is locked to the launch bearing.
+ *
+ * Returns 1σ semi-axes where major is along the trajectory.
+ * Enforces sigma_major >= sigma_minor (range error dominates physically).
+ */
+function trajectoryLockedSigma(
+  proj: WeightedProjection,
+  bearingDeg: number,
+): { sigmaMajor: number; sigmaMinor: number } {
+  const { points, totalWeight } = proj;
+  const bRad = toRad(bearingDeg);
+
+  // Trajectory axis unit vector: (east, north)
+  const trajX = Math.sin(bRad);
+  const trajY = Math.cos(bRad);
+
+  // Perpendicular axis unit vector
+  const perpX = Math.cos(bRad);
+  const perpY = -Math.sin(bRad);
+
+  // Project each point and compute weighted means
+  let wmaj = 0, wmin = 0;
+  const projMaj: number[] = [];
+  const projMin: number[] = [];
+  const normWeights: number[] = [];
+
+  for (const p of points) {
+    const nw = p.w / totalWeight;
+    const pMaj = p.dx * trajX + p.dy * trajY;
+    const pMin = p.dx * perpX + p.dy * perpY;
+    projMaj.push(pMaj);
+    projMin.push(pMin);
+    normWeights.push(nw);
+    wmaj += nw * pMaj;
+    wmin += nw * pMin;
   }
 
-  return {
-    angleDeg,
-    semiMajor: Math.max(maxMajor * 0.98, 1.0), // Tight fit, slightly under 1.0 to ensure it's not "bigger" than alert area
-    semiMinor: Math.max(maxMinor * 0.98, 0.6),
-  };
+  // Weighted variance along each axis
+  let varMaj = 0, varMin = 0;
+  for (let i = 0; i < points.length; i++) {
+    varMaj += normWeights[i] * (projMaj[i] - wmaj) ** 2;
+    varMin += normWeights[i] * (projMin[i] - wmin) ** 2;
+  }
+
+  // Bessel-like correction
+  let sumNw2 = 0;
+  for (const nw of normWeights) {
+    sumNw2 += nw * nw;
+  }
+  const correction = 1.0 - sumNw2;
+  if (correction > 1e-12) {
+    varMaj /= correction;
+    varMin /= correction;
+  }
+
+  let sigmaMajor = Math.sqrt(Math.max(varMaj, 0.001));
+  let sigmaMinor = Math.sqrt(Math.max(varMin, 0.001));
+
+  // Enforce sigma_major >= sigma_minor (range error always dominates)
+  sigmaMajor = Math.max(sigmaMajor, sigmaMinor);
+
+  return { sigmaMajor, sigmaMinor };
 }
+
+/* ── Max-extent along trajectory axes ─────────────────────────────────────── */
+
+/**
+ * Project all boundary points onto trajectory-locked axes and return
+ * the furthest point distance along each axis.
+ * This directly gives the outer ellipse semi-axes (before padding).
+ */
+function trajectoryLockedExtent(
+  proj: WeightedProjection,
+  bearingDeg: number,
+): { extentMajor: number; extentMinor: number } {
+  const bRad = toRad(bearingDeg);
+  const trajX = Math.sin(bRad);
+  const trajY = Math.cos(bRad);
+  const perpX = Math.cos(bRad);
+  const perpY = -Math.sin(bRad);
+
+  let maxMaj = 0, maxMin = 0;
+
+  for (const p of proj.points) {
+    const pMaj = Math.abs(p.dx * trajX + p.dy * trajY);
+    const pMin = Math.abs(p.dx * perpX + p.dy * perpY);
+    if (pMaj > maxMaj) maxMaj = pMaj;
+    if (pMin > maxMin) maxMin = pMin;
+  }
+
+  return { extentMajor: maxMaj, extentMinor: maxMin };
+}
+
+/* ── Ellipse ring generation ──────────────────────────────────────────────── */
 
 function generateEllipseRing(
   center_: [number, number],
@@ -188,87 +390,109 @@ function generateEllipseRing(
   return ring;
 }
 
-/**
- * Estimate launch origin distance and metadata based on stretch, orientation, and geographic heuristics.
- */
+/* ── Launch origin estimation ─────────────────────────────────────────────── */
+
 function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, semiMajorKm: number, semiMinorKm: number): { bearingDeg: number, distanceKm: number, source: string } {
-  const bearing1 = ((majorAxisAngleDeg % 360) + 360) % 360;
-  const bearing2 = (bearing1 + 180) % 360;
-
-  // Preference order: Lebanon (North) > East > Gaza (SW)
-  const isLebanonLat = center[0] > 32.9; // If cluster is very far North, default to Lebanon
-  const isSouthOfRishon = center[0] < 32.0; // Rishon is ~31.97
-  const isCoastal = center[1] < 34.85; // Close to Mediterranean coast
-  
-  function isWest(b: number) { return b >= 240 && b <= 300; }
-  let bearingDeg = bearing1;
-
-  if (isLebanonLat) {
-      // For northern clusters, pick the vector that points most North (closest to 0 or 360)
-      const diff1 = Math.min(Math.abs(bearing1), Math.abs(bearing1 - 360));
-      const diff2 = Math.min(Math.abs(bearing2), Math.abs(bearing2 - 360));
-      bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
-  } else if (isSouthOfRishon) {
-      // For southern clusters, pick the vector that points most South (closest to 180)
-      const diff1 = Math.abs(bearing1 - 180);
-      const diff2 = Math.abs(bearing2 - 180);
-      bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
-  } else if (isCoastal) {
-    // If it's coastal, we are more lenient with West (sea) origins if the ellipse is stretched that way
-    // Pick the one that points slightly more towards typical threat origins if both are sea/land mix
-    // But generally allow the math to pick the better fit.
-    const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
-    const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
-    bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
-  } else {
-    if (isWest(bearing1) && !isWest(bearing2)) bearingDeg = bearing2;
-    else if (isWest(bearing2) && !isWest(bearing1)) bearingDeg = bearing1;
-    else {
-      const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
-      const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
-      bearingDeg = diff1 >= diff2 ? bearing1 : bearing2;
-    }
-  }
-
+  const lat = center[0];
+  const lng = center[1];
   const stretch = semiMajorKm / Math.max(semiMinorKm, 1);
-  let source = "מקור לא ידוע";
-  let distanceKm = 100;
 
-  // North (Lebanon/Syria)
-  if (bearingDeg >= 315 || bearingDeg <= 45 || (isLebanonLat && (bearingDeg >= 300 || bearingDeg <= 60))) {
+  // PCA-derived candidate bearings (used for refinement only)
+  const pca1 = ((majorAxisAngleDeg % 360) + 360) % 360;
+  const pca2 = (pca1 + 180) % 360;
+
+  /**
+   * Pick the PCA candidate closest to a target bearing.
+   * If neither PCA candidate is within maxDeviation degrees, use the target directly.
+   * This lets PCA refine the direction when it agrees with the geographic prior,
+   * but prevents PCA from overriding the known threat bearing when it disagrees.
+   */
+  function refineBearing(target: number, maxDeviation: number = 40): number {
+    const d1 = angleDiff(pca1, target);
+    const d2 = angleDiff(pca2, target);
+    if (d1 <= maxDeviation && d1 <= d2) return pca1;
+    if (d2 <= maxDeviation) return pca2;
+    return target;
+  }
+
+  let bearingDeg: number;
+  let source: string;
+  let distanceKm: number;
+
+  // Determine source primarily by geographic position of the cluster center
+  if (lat > 32.5) {
+    // Northern Israel → Lebanon (bearing roughly north, ~0°)
+    bearingDeg = refineBearing(0);
     source = "לבנון";
-    const distToBorderKm = Math.max(0, (33.1 - center[0]) * 111.32);
-    distanceKm = distToBorderKm + 20 + stretch * 15; 
-  }
-  // West (Mediterranean / Sea-based)
-  else if (isWest(bearingDeg)) {
-    source = "הים התיכון (שיגור ימי)";
-    distanceKm = 30 + stretch * 20;
-  }
-  // East (Iran/Iraq)
-  else if (bearingDeg > 45 && bearingDeg < 135) {
-    source = stretch > 3 ? "איראן" : "עיראק/סוריה";
-    // Vast distances for Eastern vectors
-    distanceKm = 1000 + stretch * 150;
-  }
-  // South/South-East (Yemen)
-  else if (bearingDeg >= 135 && bearingDeg <= 210) {
+    const distToBorderKm = Math.max(0, (33.1 - lat) * 111.32);
+    distanceKm = distToBorderKm + 20 + stretch * 15;
+  } else if (lat < 31.0 && lng > 34.5) {
+    // Deep south, eastern (Arava/Negev east) → Yemen (~170°)
+    bearingDeg = refineBearing(170);
     source = "תימן";
-    distanceKm = 1800 + stretch * 50; 
-  }
-  // South West / General local (Gaza/Sinai)
-  else {
+    distanceKm = 1800 + stretch * 50;
+  } else if (lat < 31.5 && lng < 34.5) {
+    // Southwest (near Gaza envelope) → Gaza/Sinai (~220°)
+    bearingDeg = refineBearing(220);
     source = "עזה/סיני";
     distanceKm = 40 + stretch * 10;
+  } else {
+    // Central Israel (lat ~31.0–32.5) → Iran/Iraq (~85°, roughly east)
+    bearingDeg = refineBearing(85);
+    source = stretch > 3 ? "איראן" : "עיראק/סוריה";
+    distanceKm = 1000 + stretch * 150;
   }
+
+  console.log('[ImpactEllipse] estimateOrigin:', {
+    launchBearing: bearingDeg,
+    originSource: source,
+    pcaAngle: majorAxisAngleDeg,
+    pcaCandidates: [pca1.toFixed(1), pca2.toFixed(1)],
+    center: { lat: lat.toFixed(3), lng: lng.toFixed(3) },
+    stretch: stretch.toFixed(2),
+  });
 
   return { bearingDeg, distanceKm, source };
 }
 
+/* ── Trajectory-constrained centering ─────────────────────────────────────── */
+
+function applyTrajectoryConstraint(
+  weightedCenter: [number, number],
+  arithmeticMid: [number, number],
+  launchBearingDeg: number,
+): [number, number] {
+  const trajUnitX = Math.sin(toRad(launchBearingDeg));
+  const trajUnitY = Math.cos(toRad(launchBearingDeg));
+
+  // Project weighted centroid offset onto trajectory direction
+  const dLat = weightedCenter[0] - arithmeticMid[0];
+  const dLng = weightedCenter[1] - arithmeticMid[1];
+
+  const dNorth = dLat * 111.32;
+  const dEast = dLng * 111.32 * Math.cos(toRad(arithmeticMid[0]));
+
+  const proj = dNorth * trajUnitY + dEast * trajUnitX;
+  const constrainedNorth = proj * trajUnitY;
+  const constrainedEast = proj * trajUnitX;
+
+  const constrainedLat = arithmeticMid[0] + constrainedNorth / 111.32;
+  const constrainedLng = arithmeticMid[1] + constrainedEast / (111.32 * Math.cos(toRad(arithmeticMid[0])));
+
+  // Blend: 70% trajectory-constrained, 30% raw weighted centroid
+  return [
+    0.7 * constrainedLat + 0.3 * weightedCenter[0],
+    0.7 * constrainedLng + 0.3 * weightedCenter[1],
+  ];
+}
+
+/* ── Main hook ────────────────────────────────────────────────────────────── */
+
 /**
  * Hook: compute impact ellipses from raw alerts + polygon data.
  * Clusters nearby alerts spatially using union-find, then computes
- * ellipses for clusters with ≥ MIN_CITIES_FOR_ELLIPSE cities.
+ * chi-squared confidence ellipses with trajectory-locked axis orientation
+ * for clusters with ≥ MIN_CITIES_FOR_ELLIPSE cities.
  */
 export function useImpactEllipses(
   alerts: ActiveAlert[],
@@ -308,34 +532,98 @@ export function useImpactEllipses(
     for (const cluster of clusters) {
       if (cluster.length < MIN_CITIES_FOR_ELLIPSE) continue;
 
-      // Collect ALL points from ALL city polygons in the cluster to find the true spatial bounds
-      const allPoints: [number, number][] = [];
+      // Build per-city data with centroid, radius, and polygon
+      const cityDataList: CityData[] = [];
       for (const item of cluster) {
         const poly = polygons[item.cityName];
-        if (poly?.polygon) allPoints.push(...poly.polygon);
+        if (!poly?.polygon || poly.polygon.length < 3) continue;
+        cityDataList.push({
+          cityName: item.cityName,
+          centroid: item.centroid,
+          radiusKm: estimatePolygonRadiusKm(poly.polygon),
+          polygon: poly.polygon,
+        });
       }
-      
-      if (allPoints.length < 3) continue;
 
-      const center_ = centroid(allPoints);
-      const { angleDeg, semiMajor, semiMinor } = pca2d(allPoints);
-      const ellipseRing = generateEllipseRing(center_, semiMajor, semiMinor, angleDeg);
-      const hitAreaRing = generateEllipseRing(center_, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, angleDeg);
-      const { bearingDeg: launchBearingDeg, distanceKm: launchDistanceKm, source: launchSource } = estimateOrigin(
-        center_, angleDeg, semiMajor, semiMinor
+      if (cityDataList.length < MIN_CITIES_FOR_ELLIPSE) continue;
+
+      // Step 1: Weighted projection (centroid + boundary points in local km)
+      const proj = prepareWeightedProjection(cityDataList);
+
+      // Step 2: Free PCA for initial axis angle
+      const pcaResult = freePca(proj);
+
+      // Step 3: Estimate launch origin using free PCA angle
+      const origin = estimateOrigin(
+        proj.center, pcaResult.angleDeg, pcaResult.sigmaMajor, pcaResult.sigmaMinor
       );
+
+      // Step 4: Determine orientation (trajectory-locked or PCA fallback)
+      let rotation: number;
+
+      if (origin.source !== "מקור לא ידוע") {
+        rotation = origin.bearingDeg;
+      } else {
+        rotation = pcaResult.angleDeg;
+      }
+
+      // Step 5: Outer = max extent of boundary points along each axis + padding
+      const extent = trajectoryLockedExtent(proj, rotation);
+      let outerMajor = extent.extentMajor * OUTER_PADDING;
+      let outerMinor = extent.extentMinor * OUTER_PADDING;
+
+      // Enforce minimum axis ratio (range error > deflection)
+      if (outerMajor / Math.max(outerMinor, 0.1) < MIN_AXIS_RATIO) {
+        outerMajor = Math.max(outerMajor, outerMinor * MIN_AXIS_RATIO);
+      }
+
+      // Step 6: Inner = outer × 0.481
+      const innerOuterRatio = chi2Scale(INNER_CONFIDENCE) / chi2Scale(OUTER_CONFIDENCE);
+      const innerMajor = outerMajor * innerOuterRatio;
+      const innerMinor = outerMinor * innerOuterRatio;
+
+      console.log('[ImpactEllipse] sizing:', {
+        rotation,
+        originSource: origin.source,
+        outerSemiMajorKm: outerMajor.toFixed(1),
+        outerSemiMinorKm: outerMinor.toFixed(1),
+        innerSemiMajorKm: innerMajor.toFixed(1),
+        innerSemiMinorKm: innerMinor.toFixed(1),
+        rawExtentMajor: extent.extentMajor.toFixed(1),
+        rawExtentMinor: extent.extentMinor.toFixed(1),
+      });
+
+      // Step 7: Apply trajectory constraint to center
+      const arithmeticMid = centroid(cityDataList.map(c => c.centroid));
+      const constrainedCenter = applyTrajectoryConstraint(
+        proj.center, arithmeticMid, origin.bearingDeg
+      );
+
+      // Step 8: Generate ellipse rings
+      const ellipseRing = generateEllipseRing(constrainedCenter, outerMajor, outerMinor, rotation);
+      const hitAreaRing = generateEllipseRing(constrainedCenter, innerMajor, innerMinor, rotation);
 
       results.push({
         id: `ellipse_${cluster[0].status}_${cluster.map(c => c.cityName).join("_").slice(0, 30)}`,
-        center: center_,
+        center: constrainedCenter,
         ellipseRing,
         hitAreaRing,
-        majorAxisAngleDeg: angleDeg,
-        launchBearingDeg,
-        launchDistanceKm,
-        launchSource,
-        semiMajorKm: semiMajor,
-        semiMinorKm: semiMinor,
+        majorAxisAngleDeg: rotation,
+        launchBearingDeg: origin.bearingDeg,
+        launchDistanceKm: origin.distanceKm,
+        launchSource: origin.source,
+        sigmaMajorKm: outerMajor,
+        sigmaMinorKm: outerMinor,
+        outer: {
+          confidence: OUTER_CONFIDENCE,
+          semiMajorKm: outerMajor,
+          semiMinorKm: outerMinor,
+        },
+        inner: {
+          confidence: INNER_CONFIDENCE,
+          semiMajorKm: innerMajor,
+          semiMinorKm: innerMinor,
+        },
         status: cluster[0].status,
       });
     }
