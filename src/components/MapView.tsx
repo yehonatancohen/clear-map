@@ -276,7 +276,12 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const impactEllipses = useImpactEllipses(alerts, polygons);
   const uavTracks = useUavTracks();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    return "dark";
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<MapMode>("live");
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);

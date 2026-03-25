@@ -79,19 +79,8 @@ export function useSunCycle(enabled: boolean): SunCycleResult {
   useEffect(() => {
     if (!enabled) return;
 
-    // Optional URL param for mocking time speed (e.g., ?timeSpeed=3600 for 1 sec = 1 hour)
-    const isMocked = typeof window !== "undefined" && window.location.search.includes("timeSpeed");
-    let speedMult = 1;
-    if (isMocked) {
-      const p = new URLSearchParams(window.location.search);
-      speedMult = parseFloat(p.get("timeSpeed") || "1");
-    }
-
     function compute(): SunCycleResult {
-      let now = new Date();
-      if (isMocked) {
-        now = new Date(now.getTime() + performance.now() * speedMult);
-      }
+      const now = new Date();
       const { sunrise, sunset } = getSunTimes(now, LAT, LNG);
 
       const sunriseMs = sunrise.getTime();
@@ -141,8 +130,8 @@ export function useSunCycle(enabled: boolean): SunCycleResult {
 
     setResult(compute());
 
-    // Update every 60 seconds for smooth transitions (or 100ms if mocked)
-    const interval = setInterval(() => setResult(compute()), isMocked ? 100 : 60_000);
+    // Update every 60 seconds for smooth transitions
+    const interval = setInterval(() => setResult(compute()), 60_000);
     return () => clearInterval(interval);
   }, [enabled]);
 
