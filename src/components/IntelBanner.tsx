@@ -315,8 +315,10 @@ export default function IntelPanel({
             className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${mode === "history" ? 'bg-blue-500/30 border border-blue-500/50' : ''}`}
             title="היסטוריית התרעות"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={mode === "history" ? "text-blue-300" : "text-white/70"}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class={mode === "history" ? "text-blue-300" : "text-white/70"}>
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+              <path d="M12 7v5l4 2"/>
             </svg>
           </button>
         )}
@@ -342,8 +344,10 @@ export default function IntelPanel({
               <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83" />
             </svg>
           ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/70">
-              <path d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0-12.814a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0 12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-white/70">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" x2="12" y1="2" y2="15"/>
             </svg>
           )}
         </button>
@@ -724,10 +728,10 @@ export default function IntelPanel({
                   className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] transition-all border border-[#0088cc]/20 shadow-lg active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-3">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 12l-18 12 4-12-4-12 18 12z" />
-                    </svg>
-                    <span className="text-[13px] font-bold">ערוצי כתבים וחדשות</span>
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m22 2-7 20-4-9-9-4Z"/>
+                                        <path d="M22 2 11 13"/>
+                                      </svg>                    <span className="text-[13px] font-bold">ערוצי כתבים וחדשות</span>
                   </div>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-30">
                     <path d="M9 18l6-6-6-6" />
@@ -836,8 +840,9 @@ export default function IntelPanel({
             <div className="space-y-3 pt-4 border-t border-white/5">
               <div className="flex items-center gap-2">
                 <div className="bg-[#0088cc]/20 p-1.5 rounded-lg text-[#0088cc]">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 2L2 10l8 4 4 8 7-20z" />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m22 2-7 20-4-9-9-4Z"/>
+                    <path d="M22 2 11 13"/>
                   </svg>
                 </div>
                 <h4 className="text-[14px] font-bold text-white">בוט התרעות לערוצים</h4>
@@ -937,8 +942,9 @@ export default function IntelPanel({
               onClick={() => { setShowTelegramInfo(true); setIsOpen(false); }}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 hover:bg-[#0088cc]/30 transition-all active:scale-[0.98]"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M21 12l-18 12 4-12-4-12 18 12z" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m22 2-7 20-4-9-9-4Z"/>
+                <path d="M22 2 11 13"/>
               </svg>
               <span className="text-[13px] font-bold">ערוצי כתבים וחדשות</span>
             </button>
