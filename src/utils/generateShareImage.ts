@@ -61,9 +61,20 @@ function waitForMapReady(map: L.Map, timeoutMs = 1500): Promise<void> {
   });
 }
 
+/** Returns true if any ancestor up to (but not including) stopEl has opacity < threshold. */
+function hasInvisibleAncestor(el: Element, stopEl: Element, threshold = 0.05): boolean {
+  let cur: Element | null = el.parentElement;
+  while (cur && cur !== stopEl) {
+    if (parseFloat(window.getComputedStyle(cur).opacity ?? "1") < threshold) return true;
+    cur = cur.parentElement;
+  }
+  return false;
+}
+
 async function captureMapCenteredOnAlerts(
   alerts: ActiveAlert[],
   polygonsData: Record<string, { polygon: [number, number][] }> | null,
+  theme: "light" | "dark" = "dark",
 ): Promise<HTMLCanvasElement> {
   const mapRoot = document.getElementById("map-root");
   const container = mapRoot?.querySelector(".leaflet-container") as HTMLElement | null;
@@ -103,13 +114,15 @@ async function captureMapCenteredOnAlerts(
   const ctx = canvas.getContext("2d")!;
   ctx.scale(dpr, dpr);
 
-  ctx.fillStyle = "#030712";
+  ctx.fillStyle = theme === "dark" ? "#030712" : "#e8eaf0";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
-  // Draw tiles
+  // Draw tiles — skip tiles from invisible layers (e.g. the light tile layer
+  // when in dark mode has CSS opacity:0 on its pane, but drawImage ignores that).
   const tiles = container.querySelectorAll<HTMLImageElement>(".leaflet-tile");
   for (const tile of tiles) {
     if (!tile.complete || !tile.naturalWidth) continue;
+    if (hasInvisibleAncestor(tile, container)) continue;
     const tileRect = tile.getBoundingClientRect();
     try {
       ctx.drawImage(tile, tileRect.left - rect.left, tileRect.top - rect.top, tileRect.width, tileRect.height);
@@ -204,15 +217,20 @@ async function captureMapCenteredOnAlerts(
   return canvas;
 }
 
-export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
+export async function generateShareImage(alerts: ActiveAlert[], theme: "light" | "dark" = "dark"): Promise<Blob> {
   const polygonsData = await getPolygons();
-  const mapCanvas = await captureMapCenteredOnAlerts(alerts, polygonsData);
+  const mapCanvas = await captureMapCenteredOnAlerts(alerts, polygonsData, theme);
 
   const SIZE = 1080;
   const canvas = document.createElement("canvas");
   canvas.width = SIZE;
   canvas.height = SIZE;
   const ctx = canvas.getContext("2d")!;
+
+  const isDark = theme === "dark";
+  const overlayRgb = isDark ? "3,7,18" : "232,234,240";
+  const textColor = isDark ? "rgba(255,255,255,0.9)" : "rgba(10,10,20,0.9)";
+  const textColorSoft = isDark ? "rgba(255,255,255,0.85)" : "rgba(10,10,20,0.85)";
 
   const mw = mapCanvas.width;
   const mh = mapCanvas.height;
@@ -221,64 +239,67 @@ export async function generateShareImage(alerts: ActiveAlert[]): Promise<Blob> {
   const sy = (mh - cropSize) / 2;
   ctx.drawImage(mapCanvas, sx, sy, cropSize, cropSize, 0, 0, SIZE, SIZE);
 
-  // Overlays
-  const topGrad = ctx.createLinearGradient(0, 0, 0, 160);
-  topGrad.addColorStop(0, "rgba(3,7,18,0.85)");
-  topGrad.addColorStop(1, "rgba(3,7,18,0)");
+  // Top gradient overlay for logo area
+  const topGrad = ctx.createLinearGradient(0, 0, 0, 180);
+  topGrad.addColorStop(0, `rgba(${overlayRgb},0.88)`);
+  topGrad.addColorStop(1, `rgba(${overlayRgb},0)`);
   ctx.fillStyle = topGrad;
-  ctx.fillRect(0, 0, SIZE, 160);
+  ctx.fillRect(0, 0, SIZE, 180);
 
+  // Logo — larger than Telegram screenshots
   try {
-    const logo = await loadImage("/logo-dark-theme.png");
-    const logoH = 80;
+    const logo = await loadImage(`/logo-${theme}-theme.png`);
+    const logoH = 110;
     const logoW = logo.width * (logoH / logo.height);
     ctx.drawImage(logo, SIZE - logoW - 30, 24, logoW, logoH);
   } catch {
-    ctx.font = "bold 36px Rubik, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "bold 42px Rubik, sans-serif";
+    ctx.fillStyle = textColor;
     ctx.textAlign = "right";
     ctx.direction = "rtl";
-    ctx.fillText("מפה שקופה", SIZE - 30, 70);
+    ctx.fillText("מפה שקופה", SIZE - 30, 80);
   }
 
+  // Legend — larger than Telegram screenshots
   const activeStatuses = new Set(alerts.map((a) => a.status));
   if (activeStatuses.size > 0) {
     const legendEntries = ["alert", "uav", "pre_alert", "terrorist", "after_alert", "clear"].filter(
       (s) => activeStatuses.has(s),
     );
-    const legendH = 50 + legendEntries.length * 34;
-    const legendY = SIZE - legendH - 20;
+    const rowH = 42;
+    const legendH = 56 + legendEntries.length * rowH;
+    const legendY = SIZE - legendH - 24;
 
-    const legGrad = ctx.createLinearGradient(0, legendY - 40, 0, SIZE);
-    legGrad.addColorStop(0, "rgba(3,7,18,0)");
-    legGrad.addColorStop(0.3, "rgba(3,7,18,0.7)");
-    legGrad.addColorStop(1, "rgba(3,7,18,0.9)");
+    const legGrad = ctx.createLinearGradient(0, legendY - 50, 0, SIZE);
+    legGrad.addColorStop(0, `rgba(${overlayRgb},0)`);
+    legGrad.addColorStop(0.3, `rgba(${overlayRgb},0.75)`);
+    legGrad.addColorStop(1, `rgba(${overlayRgb},0.92)`);
     ctx.fillStyle = legGrad;
-    ctx.fillRect(0, legendY - 40, SIZE, SIZE - legendY + 40);
+    ctx.fillRect(0, legendY - 50, SIZE, SIZE - legendY + 50);
 
     let y = legendY;
     ctx.direction = "rtl";
     ctx.textAlign = "right";
-    ctx.font = "bold 26px Rubik, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillText("מקרא", SIZE - 40, y);
-    y += 42;
+    ctx.font = "bold 32px Rubik, sans-serif";
+    ctx.fillStyle = textColor;
+    ctx.fillText("מקרא", SIZE - 44, y);
+    y += 50;
 
     const counts: Record<string, number> = {};
     for (const a of alerts) counts[a.status] = (counts[a.status] || 0) + 1;
 
-    ctx.font = "20px Rubik, sans-serif";
+    ctx.font = "26px Rubik, sans-serif";
     for (const status of legendEntries) {
       const meta = STATUS_META[status];
       if (!meta) continue;
       ctx.beginPath();
-      ctx.arc(SIZE - 52, y - 6, 8, 0, Math.PI * 2);
+      ctx.arc(SIZE - 56, y - 7, 10, 0, Math.PI * 2);
       ctx.fillStyle = meta.color;
       ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillStyle = textColorSoft;
       const labelText = counts[status] > 1 ? `${meta.label} (${counts[status]})` : meta.label;
-      ctx.fillText(labelText, SIZE - 70, y);
-      y += 34;
+      ctx.fillText(labelText, SIZE - 76, y);
+      y += rowH;
     }
   }
 

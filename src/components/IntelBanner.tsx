@@ -249,7 +249,7 @@ export default function IntelPanel({
       // Wait for panels to close
       await new Promise((r) => setTimeout(r, 350));
 
-      const blob = await generateShareImage(alerts);
+      const blob = await generateShareImage(alerts, theme);
       const file = new File([blob], "clearmap-status.png", { type: "image/png" });
       const text = buildShareText(alerts);
 
