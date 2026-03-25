@@ -286,7 +286,7 @@ export default function IntelPanel({
           className={`liquid-glass rounded-2xl p-1.5 sm:p-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${showAbout ? 'bg-white/20' : ''}`}
         >
           <img
-            src={theme === "dark" ? "/logo-dark-theme.png" : "/logo-light-theme.png"}
+            src="/logo-dark-theme.png"
             alt="מפה שקופה"
             className="h-8 sm:h-9 w-auto object-contain"
           />
