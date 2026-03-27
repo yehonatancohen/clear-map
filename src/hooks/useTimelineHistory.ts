@@ -187,19 +187,34 @@ export function useHistoryAlerts(enabled = true) {
         }
     }
 
-    // Perform final grouping into batches (2 min window)
+    // Perform final grouping into batches (2 min window, per status group)
+    // pre_alert / alert+uav+terrorist / clear are always kept in separate batches.
     const finalBatches: AlertBatch[] = [];
     let currentBatch: AlertBatch | null = null;
+    let currentStatusGroup: string | null = null;
+
+    function statusGroup(alert: SortedAlert): string {
+        const s = alert.status || "";
+        if (s === "pre_alert" || alert.category === "pre_alert") return "pre_alert";
+        if (s === "clear" || alert.category === "clear") return "clear";
+        return "alert";
+    }
 
     for (const alert of uniqueAlerts) {
-        if (!currentBatch || Math.abs(currentBatch.startTs - alert._ts) > 120000) {
+        const sg = statusGroup(alert);
+        if (
+            !currentBatch ||
+            Math.abs(currentBatch.startTs - alert._ts) > 120000 ||
+            sg !== currentStatusGroup
+        ) {
             currentBatch = {
-                id: `batch_${alert._ts}`,
+                id: `batch_${alert._ts}_${sg}`,
                 startTs: alert._ts,
                 endTs: alert._ts,
                 alerts: [],
                 byCategory: new Map(),
             };
+            currentStatusGroup = sg;
             finalBatches.push(currentBatch);
         }
 
