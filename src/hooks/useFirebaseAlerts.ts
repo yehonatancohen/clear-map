@@ -64,7 +64,8 @@ export function useFirebaseAlerts(): ActiveAlert[] {
 
       const alertList: ActiveAlert[] = Object.values(data);
       const filtered = alertList.filter((a) => {
-        if (process.env.NODE_ENV !== "development" && a.is_test) return false;
+        const internalShowTest = typeof window !== "undefined" && (window as any).__showTestAlerts === true;
+        if (!internalShowTest && process.env.NODE_ENV !== "development" && a.is_test) return false;
         return true;
       });
 

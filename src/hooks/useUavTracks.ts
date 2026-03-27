@@ -33,7 +33,8 @@ export function useUavTracks(): UavTrack[] {
 
       // Filter test data in production
       const filtered = trackList.filter(t => {
-        if (process.env.NODE_ENV !== 'development' && t.is_test) return false;
+        const internalShowTest = typeof window !== 'undefined' && (window as any).__showTestAlerts === true;
+        if (!internalShowTest && process.env.NODE_ENV !== 'development' && t.is_test) return false;
         return true;
       });
 
