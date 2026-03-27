@@ -25,6 +25,7 @@ import TimelinePolygons from "./TimelinePolygons";
 import HistoryPanel from "./HistoryPanel";
 import { useHistoryAlerts, SortedAlert } from "@/hooks/useTimelineHistory";
 import CityLabels from "./CityLabels";
+import { SupportBanner } from "./SupportBanner";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
@@ -383,6 +384,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
       )}
       {!isBroadcast && <LiveIndicator mode={mode} />}
       {!isBroadcast && <PwaInstallBanner />}
+      {!isBroadcast && <SupportBanner />}
       <MapContainer
         center={ISRAEL_CENTER}
         zoom={DEFAULT_ZOOM}

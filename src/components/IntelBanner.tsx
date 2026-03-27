@@ -315,7 +315,7 @@ export default function IntelPanel({
             className={`liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] ${mode === "history" ? 'bg-blue-500/30 border border-blue-500/50' : ''}`}
             title="היסטוריית התרעות"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class={mode === "history" ? "text-blue-300" : "text-white/70"}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={mode === "history" ? "text-blue-300" : "text-white/70"}>
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
               <path d="M12 7v5l4 2"/>
@@ -332,6 +332,19 @@ export default function IntelPanel({
           <span className="text-[13px] sm:text-[14px] font-bold text-white tracking-tight">מקרא</span>
         </button>
 
+        {/* Support */}
+        <a
+          href="https://buymeacoffee.com/yehonatancohen"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="liquid-glass rounded-2xl p-2 sm:p-2.5 transition-all duration-200 hover:scale-[1.05] active:scale-[0.95] bg-amber-500/10 border border-amber-500/20"
+          title="תמיכה בפרויקט"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-400">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </a>
+
         {/* Share */}
         <button
           onClick={handleShare}
@@ -344,7 +357,7 @@ export default function IntelPanel({
               <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83" />
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-white/70">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/70">
               <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
               <polyline points="16 6 12 2 8 6"/>
               <line x1="12" x2="12" y1="2" y2="15"/>
@@ -687,21 +700,29 @@ export default function IntelPanel({
                 <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.2</span>
               </h3>
               <div className="mb-4 text-right overflow-y-auto scrollbar-thin">
-                <p className="text-[12px] text-white/80 leading-relaxed mb-2">
-                  מערכת התרעות ומודיעין מתקדמת בזמן אמת. המערכת משלבת דיווחי פיקוד העורף רשמיים עם מקורות מודיעין גלוי במטרה לספק את תמונת המצב המדויקת והמהירה ביותר.
+                <p className="text-[12px] text-white/80 leading-relaxed mb-3">
+                  מפה שקופה היא פרויקט <strong className="text-white">בהתנדבות מלאה</strong> לטובת הציבור. המערכת משלבת דיווחי פיקוד העורף רשמיים עם מקורות מודיעין גלוי במטרה לספק את תמונת המצב המדויקת ביותר.
                 </p>
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-3">
+                  <p className="text-[11px] text-amber-200/80 leading-snug">
+                    העלויות של החזקת השרתים והודעות הפוש עולות ככל שיש יותר משתמשים. אם אתם מוצאים ערך במערכת, נשמח לעזרתכם בכיסוי העלויות.
+                  </p>
+                </div>
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-medium text-white/50 text-right">
-                    פותח באהבה על ידי <strong className="text-white">יהונתן כהן</strong><br />
+                    פותח על ידי <strong className="text-white">יהונתן כהן</strong><br />
                     <a href="mailto:yoncohenyon@gmail.com" className="hover:text-white transition-colors underline underline-offset-2">ליצור קשר</a>
                   </p>
                   <a
                     href="https://buymeacoffee.com/yehonatancohen"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-[10px] font-bold bg-[#FFDD00] text-black px-2 py-1 rounded-md hover:bg-[#FFDD00]/90 transition-colors"
+                    className="flex items-center gap-1.5 text-[11px] font-bold bg-[#FFDD00] text-black px-3 py-1.5 rounded-lg hover:bg-[#FFDD00]/90 transition-colors shadow-lg shadow-amber-500/10"
                   >
-                    קפה?
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                    תמיכה בפרויקט
                   </a>
                 </div>
               </div>
@@ -728,7 +749,7 @@ export default function IntelPanel({
                   className="flex items-center justify-between w-full px-4 py-2.5 rounded-xl bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] transition-all border border-[#0088cc]/20 shadow-lg active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-3">
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="m22 2-7 20-4-9-9-4Z"/>
                                         <path d="M22 2 11 13"/>
                                       </svg>                    <span className="text-[13px] font-bold">ערוצי כתבים וחדשות</span>
@@ -840,7 +861,7 @@ export default function IntelPanel({
             <div className="space-y-3 pt-4 border-t border-white/5">
               <div className="flex items-center gap-2">
                 <div className="bg-[#0088cc]/20 p-1.5 rounded-lg text-[#0088cc]">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m22 2-7 20-4-9-9-4Z"/>
                     <path d="M22 2 11 13"/>
                   </svg>
@@ -942,7 +963,7 @@ export default function IntelPanel({
               onClick={() => { setShowTelegramInfo(true); setIsOpen(false); }}
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 hover:bg-[#0088cc]/30 transition-all active:scale-[0.98]"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m22 2-7 20-4-9-9-4Z"/>
                 <path d="M22 2 11 13"/>
               </svg>
