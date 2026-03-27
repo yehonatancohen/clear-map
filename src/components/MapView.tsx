@@ -293,6 +293,15 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const rawUav = searchParams.get("uav");
   const rawEllipse = searchParams.get("ellipse");
   const rawTheme = searchParams.get("theme");
+  const rawLat = searchParams.get("lat");
+  const rawLon = searchParams.get("lon");
+  const rawZoom = searchParams.get("zoom");
+
+  const initialCenter: [number, number] =
+    isBroadcast && rawLat && rawLon
+      ? [parseFloat(rawLat), parseFloat(rawLon)]
+      : ISRAEL_CENTER;
+  const initialZoom = isBroadcast && rawZoom ? parseInt(rawZoom, 10) : DEFAULT_ZOOM;
 
   const showUav = isBroadcast && rawUav ? rawUav === "true" : settings.showUavPath;
   const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : settings.showImpactZones;
@@ -386,8 +395,8 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
       {!isBroadcast && <PwaInstallBanner />}
       {!isBroadcast && <SupportBanner />}
       <MapContainer
-        center={ISRAEL_CENTER}
-        zoom={DEFAULT_ZOOM}
+        center={initialCenter}
+        zoom={initialZoom}
         zoomControl={false}
         style={{ height: "100%", width: "100%" }}
       >
