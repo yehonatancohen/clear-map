@@ -43,6 +43,15 @@ function ZoomListener() {
   return null;
 }
 
+function SetViewOnLoad({ lat, lon, zoom }: { lat: number; lon: number; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([lat, lon], zoom, { animate: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 const TILE_FADE_STYLE_ID = "tile-crossfade-style";
 function TileCrossfadeStyle() {
   useEffect(() => {
@@ -403,6 +412,13 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
         <ZoomListener />
         <MapRefSetter />
         <TileCrossfadeStyle />
+        {isBroadcast && rawLat && rawLon && rawZoom && (
+          <SetViewOnLoad
+            lat={parseFloat(rawLat)}
+            lon={parseFloat(rawLon)}
+            zoom={parseInt(rawZoom, 10)}
+          />
+        )}
         {/* Base: dark tiles always present */}
         <TileLayer url={THEMES.dark} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
         {/* Light tiles on top — opacity controls the blend */}
