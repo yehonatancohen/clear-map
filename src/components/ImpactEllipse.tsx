@@ -11,6 +11,20 @@ const STATUS_COLORS: Record<string, { stroke: string; fill: string }> = {
   terrorist: { stroke: "#FF0055", fill: "#FF0055" },
 };
 
+const INNER_ELLIPSE_COLOR = "#FFD700"; // yellow
+const INNER_GRADIENT_STEPS = 7;
+
+function scaleRingAroundCenter(
+  ring: [number, number][],
+  center: [number, number],
+  scale: number,
+): [number, number][] {
+  return ring.map(([lat, lng]) => [
+    center[0] + (lat - center[0]) * scale,
+    center[1] + (lng - center[1]) * scale,
+  ]);
+}
+
 const ARROW_LENGTH_KM = 15;
 
 /** Inject CSS keyframes once */
@@ -154,15 +168,14 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
               }}
             />
 
-            {/* Inner hit-area ellipse */}
+            {/* Inner hit-area ellipse — yellow dashed outline (stroke only, no fill) */}
             <Polygon
               positions={e.hitAreaRing}
               pathOptions={{
-                color: colors.stroke,
+                color: INNER_ELLIPSE_COLOR,
                 weight: 2,
                 dashArray: "8, 6",
-                fillColor: colors.fill,
-                fillOpacity: 0.15,
+                fillOpacity: 0,
                 opacity: 0.7,
               }}
             >
@@ -187,13 +200,31 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
               </Tooltip>
             </Polygon>
 
-            {/* Center crosshair marker */}
-            <Marker
-              position={e.center}
-              icon={centerIcon(colors.stroke)}
-              interactive={false}
-              zIndexOffset={1100}
-            />
+            {/* Inner hit-area ellipse — yellow gradient fill, edge opaque → center clear */}
+            {Array.from({ length: INNER_GRADIENT_STEPS }, (_, i) => {
+              const outerScale = 1.0 - i / INNER_GRADIENT_STEPS;
+              const innerScale = 1.0 - (i + 1) / INNER_GRADIENT_STEPS;
+              const fillOpacity = 0.22 * (INNER_GRADIENT_STEPS - i) / INNER_GRADIENT_STEPS;
+
+              const outerRing = scaleRingAroundCenter(e.hitAreaRing, e.center, outerScale);
+              const innerRing = scaleRingAroundCenter(e.hitAreaRing, e.center, innerScale);
+              const positions: [number, number][][] = innerScale > 0.01 ? [outerRing, innerRing] : [outerRing];
+
+              return (
+                <Polygon
+                  key={`inner_grad_${e.id}_${i}`}
+                  positions={positions}
+                  interactive={false}
+                  pathOptions={{
+                    color: "transparent",
+                    weight: 0,
+                    fillColor: INNER_ELLIPSE_COLOR,
+                    fillOpacity,
+                    opacity: 0,
+                  }}
+                />
+              );
+            })}
           </span>
         );
       })}
