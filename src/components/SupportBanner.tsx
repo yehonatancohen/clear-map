@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 
 const DISMISS_KEY = "support_banner_dismissed";
 const DISMISS_COOLDOWN = 7 * 24 * 60 * 60 * 1000; // 7 days
-const SHOW_DELAY_MS = 30_000; // Show after 30 seconds of browsing
+const SHOW_DELAY_MS = 3000; // Show after 3 seconds of browsing
+const AUTO_HIDE_MS = 30000; // Hide after 30 seconds
 
 export function SupportBanner() {
   const [showBanner, setShowBanner] = useState(false);
@@ -20,6 +21,14 @@ export function SupportBanner() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!showBanner) return;
+    const timer = setTimeout(() => {
+      setShowBanner(false);
+    }, AUTO_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [showBanner]);
 
   function dismissBanner() {
     setShowBanner(false);

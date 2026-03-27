@@ -79,6 +79,7 @@ function AlertFitter({
   uavTracks,
   isHistory = false,
   userCoords,
+  isBroadcast = false,
 }: {
   alerts: ActiveAlert[] | SortedAlert[];
   polygons: PolygonLookup | null;
@@ -86,21 +87,47 @@ function AlertFitter({
   isHistory?: boolean;
   /** When set, include user position in bounds if alerts are nearby. */
   userCoords?: [number, number] | null;
+  isBroadcast?: boolean;
 }) {
   const map = useMap();
   const prevIdsRef = useRef<string>("");
+  const searchParams = useSearchParams();
+  const latParam = searchParams.get("lat");
+  const lonParam = searchParams.get("lon");
 
   useEffect(() => {
     if (!polygons) return;
     if (alerts.length === 0 && (!uavTracks || uavTracks.length === 0)) return;
 
-    // ActiveAlert uses city_name_he, SortedAlert uses data
+    // IF lat/lon params are present, DO NOT perform auto-fit.
+    // We want to respect the manual view requested via URL (usually from screenshot bot).
+    if (latParam && lonParam) {
+      return;
+    }
+
+    // In broadcast mode (without specific lat/lon), we add a delay to the fit logic
+    // to allow the map to stabilize before capturing.
+    if (isBroadcast) {
+      const timer = setTimeout(() => {
+        const cityNames = alerts.map((a) => ("city_name_he" in a ? a.city_name_he : a.data));
+        const currentIds = cityNames.sort().join(",");
+        if (currentIds === prevIdsRef.current) return;
+        prevIdsRef.current = currentIds;
+        performFit(cityNames);
+      }, 12000);
+      return () => clearTimeout(timer);
+    }
+
     const cityNames = alerts.map((a) => ("city_name_he" in a ? a.city_name_he : a.data));
     const currentIds = cityNames.sort().join(",");
 
     if (currentIds === prevIdsRef.current) return;
     prevIdsRef.current = currentIds;
 
+    performFit(cityNames);
+  }, [alerts, polygons, uavTracks, isHistory, userCoords, map, isBroadcast, latParam, lonParam]);
+
+  const performFit = (cityNames: string[]) => {
     // When user location is active, check if any alert is nearby.
     // If so, fit only to nearby alerts + user position (ignore distant alerts).
     if (userCoords) {
@@ -109,7 +136,7 @@ function AlertFitter({
         const name = "city_name_he" in a ? a.city_name_he : (a as SortedAlert).data;
         const status = "city_name_he" in a ? (a as ActiveAlert).status : "alert";
         if (status !== "alert" && status !== "pre_alert" && status !== "uav" && status !== "terrorist") continue;
-        const poly = polygons[name];
+        const poly = polygons![name];
         if (!poly?.polygon || poly.polygon.length === 0) continue;
         const cLat = poly.polygon.reduce((s: number, p: [number, number]) => s + p[0], 0) / poly.polygon.length;
         const cLng = poly.polygon.reduce((s: number, p: [number, number]) => s + p[1], 0) / poly.polygon.length;
@@ -136,7 +163,7 @@ function AlertFitter({
     // Default: fit to all alerts + UAV tracks
     const allCoords: [number, number][] = [];
     for (const cityName of cityNames) {
-      const poly = polygons[cityName];
+      const poly = polygons![cityName];
       if (poly?.polygon && Array.isArray(poly.polygon)) {
         allCoords.push(...poly.polygon);
       }
@@ -169,7 +196,7 @@ function AlertFitter({
       animate: true,
       duration: 0.8,
     });
-  }, [alerts, polygons, uavTracks, isHistory, userCoords, map]);
+  };
 
   return null;
 }
@@ -430,7 +457,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
 
         {mode === "live" && (
           <>
-            <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} userCoords={showMyLocation ? userCoords : null} />
+            <AlertFitter alerts={alerts} polygons={polygons} uavTracks={uavTracks} userCoords={showMyLocation ? userCoords : null} isBroadcast={isBroadcast} />
             {mergedPolygons.map((mp) => {
               const hasNewCity = mp.city_names_he.some((name) =>
                 newAlertIds.has(`alert_${name}`),
@@ -451,7 +478,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
 
         {mode === "history" && selectedBatchAlerts.length > 0 && (
           <>
-            <AlertFitter alerts={selectedBatchAlerts} polygons={polygons} isHistory />
+            <AlertFitter alerts={selectedBatchAlerts} polygons={polygons} isHistory={true} isBroadcast={isBroadcast} />
             <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
             {showEllipse && <ImpactEllipseLayer ellipses={historyImpactEllipses} />}
           </>
