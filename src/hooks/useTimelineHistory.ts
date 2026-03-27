@@ -195,7 +195,7 @@ export function useHistoryAlerts(enabled = true) {
 
     function statusGroup(alert: SortedAlert): string {
         const s = alert.status || "";
-        if (s === "pre_alert" || alert.category === "pre_alert") return "pre_alert";
+        if (s === "pre_alert" || alert.category === "pre_alert" || alert.category === 10) return "pre_alert";
         if (s === "clear" || alert.category === "clear") return "clear";
         return "alert";
     }

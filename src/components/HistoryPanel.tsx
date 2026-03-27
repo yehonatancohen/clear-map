@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SortedAlert, AlertBatch } from "@/hooks/useTimelineHistory";
 
 interface HistoryPanelProps {
@@ -55,6 +55,17 @@ export default function HistoryPanel({
 }: HistoryPanelProps) {
   const grouped = groupBatchesByDate(batches);
   const observerTarget = useRef<HTMLDivElement>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const touchStartY = useRef(0);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const delta = e.changedTouches[0].clientY - touchStartY.current;
+    if (delta > 40) setIsCollapsed(true);
+    else if (delta < -40) setIsCollapsed(false);
+  };
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -83,11 +94,19 @@ export default function HistoryPanel({
 
   return (
     <div
-      className="absolute bottom-0 sm:top-16 sm:bottom-4 right-0 sm:right-3 left-0 sm:left-auto z-[1000] flex sm:w-80 flex-col h-[55vh] sm:h-auto liquid-glass rounded-t-3xl sm:rounded-3xl overflow-hidden glass-overlay"
+      className="absolute bottom-0 sm:top-16 sm:bottom-4 right-0 sm:right-3 left-0 sm:left-auto z-[1000] flex sm:w-80 flex-col h-[55vh] sm:h-auto liquid-glass rounded-t-3xl sm:rounded-3xl overflow-hidden glass-overlay transition-transform duration-300 ease-out sm:transform-none"
+      style={{ transform: isCollapsed ? 'translateY(calc(55vh - 80px))' : 'translateY(0)' }}
       dir="rtl"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-5 border-b border-white/5">
+      {/* Drag handle + Header */}
+      <div
+        className="flex flex-col items-center px-5 pt-2.5 pb-4 border-b border-white/5 sm:cursor-default touch-none select-none"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Pill — mobile only */}
+        <div className="w-8 h-1 rounded-full bg-white/20 mb-3 sm:hidden" />
+        <div className="flex items-center justify-between w-full">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-400">
@@ -121,6 +140,7 @@ export default function HistoryPanel({
             </svg>
             </button>
         </div>
+        </div>
       </div>
 
       {/* Batched alert list */}
@@ -145,8 +165,9 @@ export default function HistoryPanel({
               {dayBatches.map((batch) => {
                 const isSelected = selectedBatchId === batch.id;
                 const timeLabel = formatTime(batch.startTs);
-                const isClear = batch.id.startsWith("fb_") && batch.alerts[0].status === "clear";
-                const isPre = batch.id.startsWith("fb_") && batch.alerts[0].status === "pre_alert";
+                const batchStatus = batch.alerts[0]?.status || "";
+                const isClear = batchStatus === "clear";
+                const isPre = batchStatus === "pre_alert";
 
                 return (
                   <button
