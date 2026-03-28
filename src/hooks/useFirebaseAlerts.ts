@@ -71,15 +71,17 @@ export function useFirebaseAlerts(): ActiveAlert[] {
 
       const currentFilteredIds = new Set(filtered.map((a) => a.id));
 
-      // On first load, seed refs without sending notifications (prevents spam on app open)
+      // On first load, seed tracking refs.
+      // Only mark STALE alerts (> 60s old) as "already seen" so that fresh
+      // alerts that just started are treated as new below and trigger notifications.
       if (isFirstLoadRef.current) {
         isFirstLoadRef.current = false;
         for (const a of filtered) {
           activeUserAlertsRef.current.set(a.id, a);
         }
-        prevAlertsRef.current = filtered;
-        setAlerts(filtered);
-        return;
+        const nowSec = Date.now() / 1000;
+        prevAlertsRef.current = filtered.filter(a => nowSec - a.timestamp >= 60);
+        // Don't return — fall through so the notification code below handles fresh alerts.
       }
 
       // 1. Check for alerts that ENDED — batch the "return to routine" notification
