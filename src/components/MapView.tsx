@@ -313,12 +313,17 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const impactEllipses = useImpactEllipses(alerts, polygons);
   const uavTracks = useUavTracks();
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined" && window.matchMedia) {
-      return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  const [theme, setThemeState] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("map_theme");
+      if (saved === "light" || saved === "dark") return saved;
     }
     return "dark";
   });
+  const setTheme = (t: "light" | "dark") => {
+    localStorage.setItem("map_theme", t);
+    setThemeState(t);
+  };
   const containerRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<MapMode>("live");
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
