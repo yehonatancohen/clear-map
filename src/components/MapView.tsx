@@ -14,7 +14,6 @@ import { useImpactEllipses } from "@/hooks/useImpactEllipses";
 import ImpactEllipseLayer from "./ImpactEllipse";
 import IntelPanel from "./IntelBanner";
 import LiveIndicator from "./LiveIndicator";
-import { PwaInstallBanner } from "./PwaInstallBanner";
 import UavFlightPath from "./UavFlightPath";
 import { useUavTracks } from "@/hooks/useUavTracks";
 import { setMapInstance } from "@/lib/mapRef";
@@ -433,7 +432,6 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
         />
       )}
       {!isBroadcast && <LiveIndicator mode={mode} />}
-      {!isBroadcast && <PwaInstallBanner />}
       {!isBroadcast && <SupportBanner />}
       <MapContainer
         center={initialCenter}
