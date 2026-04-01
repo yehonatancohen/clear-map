@@ -487,8 +487,15 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           </>
         )}
 
-        <CityLabels polygons={polygons} theme={effectiveTheme} />
+        <CityLabels polygons={polygons} theme={effectiveTheme} alerts={mode === "live" ? alerts : undefined} ellipses={mode === "live" ? impactEllipses : undefined} />
       </MapContainer>
+      {isBroadcast && (
+        <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none select-none">
+          <span className="text-white/50 font-bold text-sm tracking-wide" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+            clearmap.co.il
+          </span>
+        </div>
+      )}
       {!isBroadcast && mode === "history" && (
         <HistoryPanel
           batches={batches}

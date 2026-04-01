@@ -645,7 +645,13 @@ export default function IntelPanel({
                           <span className="text-[10px] text-white/40 leading-tight">קבל התראות לפי המיקום שלך כעת</span>
                         </div>
                         <button
-                          onClick={() => updateSettings({ currentLocation: !settings.currentLocation })}
+                          onClick={() => {
+                            const newVal = !settings.currentLocation;
+                            updateSettings({
+                              currentLocation: newVal,
+                              allIsrael: newVal ? false : (settings.selectedCities.length === 0 ? true : settings.allIsrael),
+                            });
+                          }}
                           className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.currentLocation ? 'bg-green-600' : 'bg-white/10'}`}
                           dir="ltr"
                         >
@@ -660,7 +666,10 @@ export default function IntelPanel({
                           <span className="text-[10px] text-white/40 leading-tight">קבל התראות מכל רחבי המדינה</span>
                         </div>
                         <button
-                          onClick={() => updateSettings({ allIsrael: !settings.allIsrael })}
+                          onClick={() => {
+                            const newVal = !settings.allIsrael;
+                            updateSettings({ allIsrael: newVal, ...(newVal ? { currentLocation: false } : {}) });
+                          }}
                           className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.allIsrael ? 'bg-purple-600' : 'bg-white/10'}`}
                           dir="ltr"
                         >

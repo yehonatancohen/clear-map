@@ -74,9 +74,19 @@ function haversineKm(a: [number, number], b: [number, number]): number {
  * Simple union-find / DBSCAN-style clustering by distance.
  * Groups city centroids that are within CLUSTER_DISTANCE_KM of each other.
  */
+/** Approximate polygon radius: max distance from centroid to any boundary vertex (km). */
+function polygonRadius(poly: [number, number][], cent: [number, number]): number {
+  let max = 0;
+  for (const p of poly) {
+    const d = haversineKm(cent, p);
+    if (d > max) max = d;
+  }
+  return max;
+}
+
 function clusterCentroids(
-  items: { cityName: string; centroid: [number, number]; status: string }[],
-): { cityName: string; centroid: [number, number]; status: string }[][] {
+  items: { cityName: string; centroid: [number, number]; status: string; radius: number }[],
+): { cityName: string; centroid: [number, number]; status: string; radius: number }[][] {
   const n = items.length;
   const parent = Array.from({ length: n }, (_, i) => i);
 
@@ -89,12 +99,15 @@ function clusterCentroids(
     if (ra !== rb) parent[ra] = rb;
   }
 
-  // Unite nearby cities with the same status, using latitude-adjusted distance
+  // Unite cities whose polygon borders are within the cluster threshold.
+  // Border-to-border distance ≈ centroid distance − sum of polygon radii.
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       if (items[i].status !== items[j].status) continue;
+      const centDist = haversineKm(items[i].centroid, items[j].centroid);
+      const borderDist = Math.max(0, centDist - items[i].radius - items[j].radius);
       const avgLat = (items[i].centroid[0] + items[j].centroid[0]) / 2;
-      if (haversineKm(items[i].centroid, items[j].centroid) <= clusterDistanceKm(avgLat)) {
+      if (borderDist <= clusterDistanceKm(avgLat)) {
         unite(i, j);
       }
     }
@@ -139,31 +152,74 @@ function pcaAngle(cityCentroids: [number, number][]): number {
 }
 
 /**
- * Max-projection extents of all boundary points along the given axis angle.
- * Gives the tight-fit semi-axes so the ellipse touches the polygon edges.
+ * Extrapolated ellipse extents that handle coastline clipping.
+ *
+ * For each city in the cluster, we measure its polygon extent in all four
+ * axis-aligned directions (±major, ±minor) relative to its own centroid.
+ * We then use max(+side, −side) as the city's "symmetric radius" along each
+ * axis — if the sea side is clipped at the coastline and thus shorter than
+ * the land side, the land-side radius is mirrored to fill in the sea area.
+ * If both sides are roughly equal (open land city) nothing changes.
+ *
+ * The global semi-axes are then:
+ *   semiAxis = max over all cities of (centroid_projection + symmetric_radius)
+ * taken independently in the positive and negative directions, then the larger
+ * of the two becomes the final semi-axis (symmetric ellipse).
  */
-function extentsAlongAngle(
-  allBoundaryPoints: [number, number][],
+function extentsAlongAngleExtrapolated(
+  cluster: { cityName: string; centroid: [number, number] }[],
+  polygons: PolygonLookup,
   center_: [number, number],
   angleDeg: number,
 ): { semiMajor: number; semiMinor: number } {
   const rotRad = toRad(angleDeg);
   const cosR = Math.cos(rotRad);
   const sinR = Math.sin(rotRad);
-  let maxMajor = 0, maxMinor = 0;
 
-  for (const [lat, lng] of allBoundaryPoints) {
-    const dy = (lat - center_[0]) * 111.32;
-    const dx = (lng - center_[1]) * 111.32 * Math.cos(toRad(center_[0]));
-    const pMajor = Math.abs(-dx * sinR + dy * cosR);
-    const pMinor = Math.abs(dx * cosR + dy * sinR);
-    if (pMajor > maxMajor) maxMajor = pMajor;
-    if (pMinor > maxMinor) maxMinor = pMinor;
+  let posMajor = 0, negMajor = 0;
+  let posMinor = 0, negMinor = 0;
+
+  for (const item of cluster) {
+    const poly = polygons[item.cityName];
+    if (!poly?.polygon?.length) continue;
+
+    // Centroid projection onto axes relative to cluster center
+    const cdy = (item.centroid[0] - center_[0]) * 111.32;
+    const cdx = (item.centroid[1] - center_[1]) * 111.32 * Math.cos(toRad(center_[0]));
+    const cMajor = -cdx * sinR + cdy * cosR;
+    const cMinor = cdx * cosR + cdy * sinR;
+
+    // City's own extent along each axis direction, relative to its centroid
+    let cityPosMajor = 0, cityNegMajor = 0;
+    let cityPosMinor = 0, cityNegMinor = 0;
+
+    for (const [lat, lng] of poly.polygon) {
+      const dy = (lat - item.centroid[0]) * 111.32;
+      const dx = (lng - item.centroid[1]) * 111.32 * Math.cos(toRad(item.centroid[0]));
+      const pMajor = -dx * sinR + dy * cosR;
+      const pMinor = dx * cosR + dy * sinR;
+
+      if (pMajor > cityPosMajor) cityPosMajor = pMajor;
+      if (-pMajor > cityNegMajor) cityNegMajor = -pMajor;
+      if (pMinor > cityPosMinor) cityPosMinor = pMinor;
+      if (-pMinor > cityNegMinor) cityNegMinor = -pMinor;
+    }
+
+    // Symmetric radius: mirror the larger (non-clipped) side onto the smaller
+    // (potentially coast-clipped) side so the ellipse extends over the sea.
+    const radiusMajor = Math.max(cityPosMajor, cityNegMajor);
+    const radiusMinor = Math.max(cityPosMinor, cityNegMinor);
+
+    // Global extent from cluster center, both directions
+    if (cMajor + radiusMajor > posMajor) posMajor = cMajor + radiusMajor;
+    if (-cMajor + radiusMajor > negMajor) negMajor = -cMajor + radiusMajor;
+    if (cMinor + radiusMinor > posMinor) posMinor = cMinor + radiusMinor;
+    if (-cMinor + radiusMinor > negMinor) negMinor = -cMinor + radiusMinor;
   }
 
   return {
-    semiMajor: Math.max(maxMajor * 0.98, 1.0),
-    semiMinor: Math.max(maxMinor * 0.98, 0.6),
+    semiMajor: Math.max(Math.max(posMajor, negMajor) * 0.98, 1.0),
+    semiMinor: Math.max(Math.max(posMinor, negMinor) * 0.98, 0.6),
   };
 }
 
@@ -281,7 +337,7 @@ export function useImpactEllipses(
     if (relevant.length < MIN_CITIES_FOR_ELLIPSE) return [];
 
     // Compute centroid for each alert's city polygon
-    const items: { cityName: string; centroid: [number, number]; status: string }[] = [];
+    const items: { cityName: string; centroid: [number, number]; status: string; radius: number }[] = [];
     const seen = new Set<string>();
     for (const alert of relevant) {
       if (seen.has(alert.city_name_he)) continue;
@@ -289,10 +345,12 @@ export function useImpactEllipses(
 
       const poly = polygons[alert.city_name_he];
       if (!poly?.polygon || poly.polygon.length < 3) continue;
+      const cent = centroid(poly.polygon);
       items.push({
         cityName: alert.city_name_he,
-        centroid: centroid(poly.polygon),
+        centroid: cent,
         status: alert.status,
+        radius: polygonRadius(poly.polygon, cent),
       });
     }
 
@@ -305,21 +363,12 @@ export function useImpactEllipses(
     for (const cluster of clusters) {
       if (cluster.length < MIN_CITIES_FOR_ELLIPSE) continue;
 
-      // Collect boundary points for extent calculation
-      const allPoints: [number, number][] = [];
-      for (const item of cluster) {
-        const poly = polygons[item.cityName];
-        if (poly?.polygon) allPoints.push(...poly.polygon);
-      }
-
-      if (allPoints.length < 3) continue;
-
       // Center = mean of city centroids (equal weight per city, not per polygon vertex)
       const center_ = centroid(cluster.map(item => item.centroid));
       // Angle = PCA of city centroids (reflects how cities are arranged, not polygon shapes)
       const angleDeg = pcaAngle(cluster.map(item => item.centroid));
-      // Extents = max boundary-point projections onto those axes
-      const { semiMajor, semiMinor } = extentsAlongAngle(allPoints, center_, angleDeg);
+      // Extents: per-city symmetric radius extrapolation handles coastline clipping
+      const { semiMajor, semiMinor } = extentsAlongAngleExtrapolated(cluster, polygons, center_, angleDeg);
       const ellipseRing = generateEllipseRing(center_, semiMajor, semiMinor, angleDeg);
       const hitAreaRing = generateEllipseRing(center_, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, angleDeg);
       const { bearingDeg: launchBearingDeg, distanceKm: launchDistanceKm, source: launchSource } = estimateOrigin(

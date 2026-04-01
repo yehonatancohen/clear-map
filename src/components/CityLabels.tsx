@@ -4,10 +4,28 @@ import { useMemo, useState } from "react";
 import { Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { PolygonLookup } from "@/hooks/usePolygons";
+import type { ActiveAlert } from "@/types";
+import type { ImpactEllipse } from "@/hooks/useImpactEllipses";
 
 interface CityLabelsProps {
   polygons: PolygonLookup | null;
   theme: "light" | "dark";
+  alerts?: ActiveAlert[];
+  ellipses?: ImpactEllipse[];
+}
+
+/** Ray-casting point-in-polygon for a lat/lng ring. */
+function pointInRing(point: [number, number], ring: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [lati, lngi] = ring[i];
+    const [latj, lngj] = ring[j];
+    if ((lngi > point[1]) !== (lngj > point[1]) &&
+        point[0] < (latj - lati) * (point[1] - lngi) / (lngj - lngi) + lati) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
 export interface LabelPoint {
@@ -51,7 +69,7 @@ export function getLabelHierarchy(zoom: number) {
     return 0;
 }
 
-export default function CityLabels({ polygons, theme }: CityLabelsProps) {
+export default function CityLabels({ polygons, theme, alerts, ellipses }: CityLabelsProps) {
   const map = useMap();
   const [mapState, setMapState] = useState({
     zoom: map.getZoom(),
@@ -100,52 +118,75 @@ export default function CityLabels({ polygons, theme }: CityLabelsProps) {
     return labels;
   }, [polygons, showIndividual]);
 
+  const alertedCities = useMemo(() => {
+    const s = new Set<string>();
+    if (alerts) for (const a of alerts) { s.add(a.city_name_he); }
+    return s;
+  }, [alerts]);
+
+  const hitRings = useMemo(() =>
+    ellipses?.map(e => e.hitAreaRing) ?? [],
+  [ellipses]);
+
   const visibleLabels = useMemo(() => {
     if (!map || allLabels.length === 0) return [];
-    const sorted = [...allLabels].sort((a, b) => a.tier - b.tier);
-    const accepted: { label: LabelPoint; isLarge: boolean }[] = [];
-    const occupiedRects: { x1: number; y1: number; x2: number; y2: number }[] = [];
-    const mapSize = map.getSize();
     const maxTier = getLabelHierarchy(mapState.zoom);
 
-    for (const label of sorted) {
-      if (label.tier > maxTier) continue;
+    // Annotate each label with its highlight state before sorting
+    const annotated = allLabels.map(label => {
+      const isAlerted = alertedCities.has(label.id) || alertedCities.has(label.name);
+      const isEllipseHit = isAlerted && hitRings.some(ring => pointInRing(label.pos, ring));
+      // Ellipse-hit cities always show; alerted cities get 2 extra tiers; rest normal
+      const effectiveTier = isEllipseHit ? -1 : isAlerted ? label.tier - 2 : label.tier;
+      return { label, isAlerted, isEllipseHit, effectiveTier };
+    });
+
+    // Sort: ellipse-hit first, then alerted, then by tier
+    const sorted = annotated.sort((a, b) => a.effectiveTier - b.effectiveTier);
+
+    const accepted: { label: LabelPoint; isLarge: boolean; isAlerted: boolean; isEllipseHit: boolean }[] = [];
+    const occupiedRects: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    const mapSize = map.getSize();
+
+    for (const { label, isAlerted, isEllipseHit, effectiveTier } of sorted) {
+      if (effectiveTier > maxTier) continue;
       const point = map.latLngToContainerPoint(label.pos);
       if (point.x < -50 || point.y < -50 || point.x > mapSize.x + 50 || point.y > mapSize.y + 50) continue;
 
-      // Determine if label should be larger
-      const isLarge = mapState.zoom < 10 && label.tier <= 1;
+      const isLarge = (mapState.zoom < 10 && label.tier <= 1) || isEllipseHit;
       const fontSize = isLarge ? 14 : 12;
-      
-      // Calculate dimensions for text-only without background padding
       const width = label.name.length * (fontSize * 0.8) + 12;
       const height = fontSize + 10;
       const rect = { x1: point.x - width / 2, y1: point.y - height / 2, x2: point.x + width / 2, y2: point.y + height / 2 };
-      
-      const padding = mapState.zoom >= 11 ? 4 : 18;
+
+      // Alerted/hit labels use tighter collision padding so they're more likely to fit
+      const padding = isAlerted ? 2 : (mapState.zoom >= 11 ? 4 : 18);
       if (!occupiedRects.some(r => rect.x1 - padding < r.x2 && rect.x2 + padding > r.x1 && rect.y1 - padding < r.y2 && rect.y2 + padding > r.y1)) {
-        accepted.push({ label, isLarge });
+        accepted.push({ label, isLarge, isAlerted, isEllipseHit });
         occupiedRects.push(rect);
       }
     }
     return accepted;
-  }, [allLabels, mapState, map]);
+  }, [allLabels, mapState, map, alertedCities, hitRings]);
 
   return (
     <>
-      {visibleLabels.map(({ label, isLarge }) => (
-        <Marker
-          key={label.id}
-          position={label.pos}
-          interactive={false}
-          icon={L.divIcon({
-            className: "city-label-container",
-            html: `<div class="city-label ${theme} ${isLarge ? 'size-large' : ''}">${label.name}</div>`,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0],
-          })}
-        />
-      ))}
+      {visibleLabels.map(({ label, isLarge, isAlerted, isEllipseHit }) => {
+        const extra = isEllipseHit ? 'ellipse-hit' : isAlerted ? 'alerted' : '';
+        return (
+          <Marker
+            key={label.id}
+            position={label.pos}
+            interactive={false}
+            icon={L.divIcon({
+              className: "city-label-container",
+              html: `<div class="city-label ${theme} ${isLarge ? 'size-large' : ''} ${extra}">${label.name}</div>`,
+              iconSize: [0, 0],
+              iconAnchor: [0, 0],
+            })}
+          />
+        );
+      })}
     </>
   );
 }

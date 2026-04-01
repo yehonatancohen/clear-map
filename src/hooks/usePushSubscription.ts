@@ -27,10 +27,17 @@ function hashEndpoint(endpoint: string): string {
 }
 
 async function storeSubscription(
-  subscription: PushSubscription, 
-  settings: NotificationSettings, 
+  subscription: PushSubscription,
+  settings: NotificationSettings,
   userCoords: [number, number] | null
 ) {
+  // If the user wants location-based alerts but coords aren't ready yet, wait.
+  // Storing with userCoords=null + allIsrael=false would result in zero notifications.
+  if (settings.currentLocation && !userCoords) {
+    console.log("[Push] Skipping store: currentLocation=true but coords not yet available");
+    return;
+  }
+
   try {
     const key = hashEndpoint(subscription.endpoint);
     const data = subscription.toJSON();

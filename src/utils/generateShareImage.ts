@@ -2,13 +2,13 @@ import { ActiveAlert } from "@/types";
 import { getMapInstance } from "@/lib/mapRef";
 import { CITY_RANKINGS, getLabelHierarchy } from "@/components/CityLabels";
 
-const STATUS_META: Record<string, { emoji: string; label: string; color: string; fill: string }> = {
-  pre_alert: { emoji: "\uD83D\uDFE0", label: "התרעות מוקדמות", color: "#FF6A00", fill: "rgba(255,106,0,0.5)" },
-  alert: { emoji: "\uD83D\uDD34", label: "ירי רקטות וטילים", color: "#FF2A2A", fill: "rgba(255,42,42,0.5)" },
-  uav: { emoji: "\uD83D\uDFE3", label: "כלי טיס עוין", color: "#E040FB", fill: "rgba(224,64,251,0.5)" },
-  terrorist: { emoji: "\uD83D\uDD34", label: "חדירת מחבלים", color: "#FF0055", fill: "rgba(255,0,85,0.5)" },
-  after_alert: { emoji: "\u26AB", label: 'להישאר בממ"ד', color: "#A80000", fill: "rgba(168,0,0,0.25)" },
-  clear: { emoji: "\uD83D\uDFE2", label: "ניתן לצאת מהמרחב המוגן", color: "#10B981", fill: "rgba(16,185,129,0.4)" },
+const STATUS_META: Record<string, { emoji: string; label: string; color: string; fill: string; glow: string; dot: string }> = {
+  pre_alert: { emoji: "\uD83D\uDFE0", label: "התרעות מוקדמות", color: "rgba(255,106,0,0.9)", fill: "rgba(255,106,0,0.25)", glow: "rgba(255,106,0,0.7)", dot: "#FF6A00" },
+  alert: { emoji: "\uD83D\uDD34", label: "ירי רקטות וטילים", color: "rgba(255,42,42,0.9)", fill: "rgba(255,42,42,0.35)", glow: "rgba(239,68,68,0.8)", dot: "#FF2A2A" },
+  uav: { emoji: "\uD83D\uDFE3", label: "כלי טיס עוין", color: "rgba(224,64,251,0.9)", fill: "rgba(224,64,251,0.35)", glow: "rgba(224,64,251,0.7)", dot: "#E040FB" },
+  terrorist: { emoji: "\uD83D\uDD34", label: "חדירת מחבלים", color: "rgba(255,0,85,0.9)", fill: "rgba(255,0,85,0.35)", glow: "rgba(255,0,85,0.7)", dot: "#FF0055" },
+  after_alert: { emoji: "\u26AB", label: 'להישאר בממ"ד', color: "rgba(255,42,42,0.5)", fill: "rgba(255,42,42,0.15)", glow: "rgba(239,68,68,0.4)", dot: "#ef4444" },
+  clear: { emoji: "\uD83D\uDFE2", label: "ניתן לצאת מהמרחב המוגן", color: "rgba(16,185,129,0.9)", fill: "rgba(16,185,129,0.3)", glow: "rgba(16,185,129,0.6)", dot: "#10B981" },
 };
 
 // Global cache for polygons to avoid repeated fetches
@@ -32,32 +32,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
-  });
-}
-
-/**
- * Rapidly check if tiles are loaded. 
- * Instead of waiting 4s, we check if there are any pending 'loading' tiles.
- */
-function waitForMapReady(map: L.Map, timeoutMs = 1500): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(resolve, timeoutMs);
-    
-    // Check if map is already stable
-    let isLoaded = true;
-    map.eachLayer((layer: any) => {
-        if (layer._loading) isLoaded = false;
-    });
-
-    if (isLoaded) {
-        clearTimeout(timer);
-        resolve();
-    } else {
-        map.once("load zoomend moveend", () => {
-            clearTimeout(timer);
-            setTimeout(resolve, 100); // Tiny buffer
-        });
-    }
   });
 }
 
@@ -86,23 +60,20 @@ async function captureMapCenteredOnAlerts(
   const savedCenter = map ? map.getCenter() : null;
   const savedZoom = map ? map.getZoom() : null;
 
+  // Fit to alert centroids so alerts are always in frame
   if (map && alerts.length > 0 && polygonsData) {
-    const allCoords: [number, number][] = [];
+    const alertBounds = L.latLngBounds([]);
     for (const a of alerts) {
       const poly = polygonsData[a.city_name_he];
-      if (poly?.polygon && Array.isArray(poly.polygon)) {
-        allCoords.push(...poly.polygon);
+      if (poly?.polygon?.length) {
+        let latSum = 0, lngSum = 0;
+        for (const [lat, lng] of poly.polygon) { latSum += lat; lngSum += lng; }
+        alertBounds.extend(L.latLng(latSum / poly.polygon.length, lngSum / poly.polygon.length));
       }
     }
-    
-    if (allCoords.length > 0) {
-      const bounds = L.latLngBounds(allCoords.map(([lat, lng]) => L.latLng(lat, lng)));
-      // Only jump if current view doesn't contain the alerts or is significantly different
-      const currentBounds = map.getBounds();
-      if (!currentBounds.contains(bounds) || map.getZoom() > 12 || map.getZoom() < 7) {
-          map.fitBounds(bounds, { padding: [60, 60], maxZoom: 11, animate: false });
-          await waitForMapReady(map);
-      }
+    if (alertBounds.isValid()) {
+      map.fitBounds(alertBounds, { padding: [80, 80], maxZoom: 12, animate: false });
+      await new Promise(r => setTimeout(r, 350));
     }
   }
 
@@ -136,15 +107,26 @@ async function captureMapCenteredOnAlerts(
       if (!poly?.polygon || poly.polygon.length < 3) continue;
       const meta = STATUS_META[a.status] || STATUS_META.alert;
       const points = poly.polygon.map(([lat, lng]) => map.latLngToContainerPoint(L.latLng(lat, lng)));
+
       ctx.beginPath();
       ctx.moveTo(points[0].x, points[0].y);
       for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
       ctx.closePath();
+
+      // Fill
       ctx.fillStyle = meta.fill;
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
       ctx.fill();
+
+      // Stroke with glow (matching CSS drop-shadow)
+      ctx.shadowColor = meta.glow;
+      ctx.shadowBlur = 10;
       ctx.strokeStyle = meta.color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5 / dpr;
       ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = "transparent";
     }
 
     // 2. Draw City Labels
@@ -294,7 +276,7 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
       if (!meta) continue;
       ctx.beginPath();
       ctx.arc(SIZE - 56, y - 7, 10, 0, Math.PI * 2);
-      ctx.fillStyle = meta.color;
+      ctx.fillStyle = meta.dot;
       ctx.fill();
       ctx.fillStyle = textColorSoft;
       const labelText = counts[status] > 1 ? `${meta.label} (${counts[status]})` : meta.label;
@@ -302,6 +284,16 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
       y += rowH;
     }
   }
+
+  // URL watermark — bottom left
+  ctx.direction = "ltr";
+  ctx.textAlign = "left";
+  ctx.font = "bold 28px Rubik, sans-serif";
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
+  ctx.fillText("clearmap.co.il", 30, SIZE - 28);
+  ctx.shadowBlur = 0;
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))), "image/png", 0.9);
