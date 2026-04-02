@@ -223,6 +223,65 @@ function extentsAlongAngleExtrapolated(
   };
 }
 
+/**
+ * Approximate Israel Mediterranean coastline longitude for a given latitude.
+ * Interpolated from roughly (33.1°N, 35.08°E) in the north to (31.3°N, 34.25°E) in the south.
+ */
+function coastlineLng(lat: number): number {
+  return 34.25 + (lat - 31.3) * (35.08 - 34.25) / (33.1 - 31.3);
+}
+
+/**
+ * Adjust ellipse center and extents when near the Mediterranean coastline.
+ *
+ * Because alerts only come from land-based cities, coastal clusters have their
+ * centroid shifted inland. This function:
+ *  1. Detects if the cluster is close to the coast
+ *  2. Shifts the center seaward to compensate for the missing sea-side data
+ *  3. Slightly expands the axis perpendicular to the coast
+ *
+ * This makes coastal ellipses "imagine" the sea as part of the alert zone,
+ * producing a more realistic coverage shape.
+ */
+function adjustForCoastline(
+  center: [number, number],
+  semiMajor: number,
+  semiMinor: number,
+  angleDeg: number,
+): { center: [number, number]; semiMajor: number; semiMinor: number } {
+  const cLng = coastlineLng(center[0]);
+
+  // Distance from center to coastline in km (positive = east of coast / inland)
+  const cosLat = Math.cos(toRad(center[0]));
+  const distToCoastKm = (center[1] - cLng) * 111.32 * cosLat;
+
+  // Only apply if cluster is inland and within threshold of coast
+  const COAST_THRESHOLD_KM = 20;
+  if (distToCoastKm < 0 || distToCoastKm > COAST_THRESHOLD_KM) {
+    return { center, semiMajor, semiMinor };
+  }
+
+  // How "coastal" is this cluster? (1 = right at coast, 0 = at threshold)
+  const coastFactor = 1 - distToCoastKm / COAST_THRESHOLD_KM;
+
+  // Shift center seaward (westward) by a fraction of the distance to coast
+  const shiftKm = distToCoastKm * 0.4 * coastFactor;
+  const shiftLng = shiftKm / (111.32 * cosLat);
+  const newCenter: [number, number] = [center[0], center[1] - shiftLng];
+
+  // Determine which axis is roughly perpendicular to the coast (E-W ≈ 90°)
+  // and expand it slightly to represent the missing sea-side data
+  const angleRad = toRad(angleDeg);
+  const majorEW = Math.abs(Math.sin(angleRad)); // 1 if major axis is E-W
+  const minorEW = Math.abs(Math.cos(angleRad)); // 1 if minor axis is E-W
+
+  const expandAmount = 1 + coastFactor * 0.2;
+  const newSemiMajor = semiMajor * (1 + (expandAmount - 1) * majorEW);
+  const newSemiMinor = semiMinor * (1 + (expandAmount - 1) * minorEW);
+
+  return { center: newCenter, semiMajor: newSemiMajor, semiMinor: newSemiMinor };
+}
+
 function generateEllipseRing(
   center_: [number, number],
   semiMajorKm: number,
@@ -364,11 +423,15 @@ export function useImpactEllipses(
       if (cluster.length < MIN_CITIES_FOR_ELLIPSE) continue;
 
       // Center = mean of city centroids (equal weight per city, not per polygon vertex)
-      const center_ = centroid(cluster.map(item => item.centroid));
+      const rawCenter = centroid(cluster.map(item => item.centroid));
       // Angle = PCA of city centroids (reflects how cities are arranged, not polygon shapes)
       const angleDeg = pcaAngle(cluster.map(item => item.centroid));
       // Extents: per-city symmetric radius extrapolation handles coastline clipping
-      const { semiMajor, semiMinor } = extentsAlongAngleExtrapolated(cluster, polygons, center_, angleDeg);
+      const rawExtents = extentsAlongAngleExtrapolated(cluster, polygons, rawCenter, angleDeg);
+      // Coastline adjustment: shift center seaward and expand when near Mediterranean
+      const { center: center_, semiMajor, semiMinor } = adjustForCoastline(
+        rawCenter, rawExtents.semiMajor, rawExtents.semiMinor, angleDeg
+      );
       const ellipseRing = generateEllipseRing(center_, semiMajor, semiMinor, angleDeg);
       const hitAreaRing = generateEllipseRing(center_, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, angleDeg);
       const { bearingDeg: launchBearingDeg, distanceKm: launchDistanceKm, source: launchSource } = estimateOrigin(

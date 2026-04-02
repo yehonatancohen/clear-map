@@ -136,8 +136,8 @@ export default function CityLabels({ polygons, theme, alerts, ellipses }: CityLa
     const annotated = allLabels.map(label => {
       const isAlerted = alertedCities.has(label.id) || alertedCities.has(label.name);
       const isEllipseHit = isAlerted && hitRings.some(ring => pointInRing(label.pos, ring));
-      // Ellipse-hit cities always show; alerted cities get 2 extra tiers; rest normal
-      const effectiveTier = isEllipseHit ? -1 : isAlerted ? label.tier - 2 : label.tier;
+      // Cities inside ellipse get a minor zoom boost so they appear slightly earlier
+      const effectiveTier = isEllipseHit ? label.tier - 1.0 : isAlerted ? label.tier - 0.5 : label.tier;
       return { label, isAlerted, isEllipseHit, effectiveTier };
     });
 
@@ -153,14 +153,13 @@ export default function CityLabels({ polygons, theme, alerts, ellipses }: CityLa
       const point = map.latLngToContainerPoint(label.pos);
       if (point.x < -50 || point.y < -50 || point.x > mapSize.x + 50 || point.y > mapSize.y + 50) continue;
 
-      const isLarge = (mapState.zoom < 10 && label.tier <= 1) || isEllipseHit;
+      const isLarge = mapState.zoom < 10 && label.tier <= 1;
       const fontSize = isLarge ? 14 : 12;
       const width = label.name.length * (fontSize * 0.8) + 12;
       const height = fontSize + 10;
       const rect = { x1: point.x - width / 2, y1: point.y - height / 2, x2: point.x + width / 2, y2: point.y + height / 2 };
 
-      // Alerted/hit labels use tighter collision padding so they're more likely to fit
-      const padding = isAlerted ? 2 : (mapState.zoom >= 11 ? 4 : 18);
+      const padding = mapState.zoom >= 11 ? 4 : 18;
       if (!occupiedRects.some(r => rect.x1 - padding < r.x2 && rect.x2 + padding > r.x1 && rect.y1 - padding < r.y2 && rect.y2 + padding > r.y1)) {
         accepted.push({ label, isLarge, isAlerted, isEllipseHit });
         occupiedRects.push(rect);

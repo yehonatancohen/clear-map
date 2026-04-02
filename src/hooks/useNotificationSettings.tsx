@@ -69,11 +69,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const needsLocation = settings.currentLocation || settings.showMyLocation;
   useEffect(() => {
     if (needsLocation && "geolocation" in navigator) {
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => setUserCoords([pos.coords.latitude, pos.coords.longitude]),
-        (err) => console.error("Geolocation error", err),
-        { enableHighAccuracy: true }
-      );
+      let watchId: number;
+
+      // Try high accuracy first, fall back to lower accuracy on error
+      const startWatch = (highAccuracy: boolean) => {
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => setUserCoords([pos.coords.latitude, pos.coords.longitude]),
+          (err) => {
+            console.warn("Geolocation error (highAccuracy=" + highAccuracy + "):", err.message);
+            if (highAccuracy && err.code !== err.PERMISSION_DENIED) {
+              // Retry with lower accuracy — high accuracy may not be available in PWA
+              navigator.geolocation.clearWatch(watchId);
+              startWatch(false);
+            }
+          },
+          { enableHighAccuracy: highAccuracy, timeout: 15000, maximumAge: 60000 }
+        );
+      };
+
+      startWatch(true);
       return () => navigator.geolocation.clearWatch(watchId);
     } else {
       setUserCoords(null);

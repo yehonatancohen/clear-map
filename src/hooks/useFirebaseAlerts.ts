@@ -3,8 +3,20 @@ import { ref, onValue } from "firebase/database";
 import { rtdb } from "@/lib/firebase";
 import { ActiveAlert } from "@/types";
 import { useNotificationSettings } from "./useNotificationSettings";
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
-import { point, polygon as turfPolygon } from "@turf/helpers";
+
+/** Great-circle distance in km between two [lat, lng] points. */
+function haversineKm(a: [number, number], b: [number, number]): number {
+  const R = 6371;
+  const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+  const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos((a[0] * Math.PI) / 180) * Math.cos((b[0] * Math.PI) / 180) * sinLng * sinLng;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Location proximity radius in km (matches backend's 15km). */
+const LOCATION_RADIUS_KM = 15;
 
 /**
  * Subscribes to /public_state/active_alerts in Firebase RTDB.
@@ -20,7 +32,7 @@ export function useFirebaseAlerts(): ActiveAlert[] {
   const activeUserAlertsRef = useRef<Map<string, ActiveAlert>>(new Map());
   const isFirstLoadRef = useRef(true);
   const { settings, userCoords } = useNotificationSettings();
-  const [polygons, setPolygons] = useState<any>(null);
+  const [centroids, setCentroids] = useState<Record<string, [number, number]> | null>(null);
   const [cityRegions, setCityRegions] = useState<Record<string, string>>({});
 
   // Load city-to-region mapping
@@ -31,7 +43,15 @@ export function useFirebaseAlerts(): ActiveAlert[] {
       .catch(() => {});
   }, []);
 
-  // ... (polygons and permission effects)
+  // Load city centroids for location-based notification filtering
+  useEffect(() => {
+    if (settings.currentLocation) {
+      fetch("/data/city-centroids.json")
+        .then((res) => res.json())
+        .then((data: Record<string, [number, number]>) => setCentroids(data))
+        .catch(() => {});
+    }
+  }, [settings.currentLocation]);
 
   useEffect(() => {
     const alertsRef = ref(rtdb, "public_state/active_alerts");
@@ -121,17 +141,11 @@ export function useFirebaseAlerts(): ActiveAlert[] {
           let shouldNotify = settings.allIsrael;
           if (!shouldNotify && settings.selectedCities.includes(a.city_name_he || a.city_name))
             shouldNotify = true;
-          if (!shouldNotify && settings.currentLocation && userCoords && polygons) {
-            const cityData = polygons[a.city_name_he] || polygons[a.city_name];
-            if (cityData?.polygon) {
-              const turfCoords = [cityData.polygon.map((p: [number, number]) => [p[1], p[0]])];
-              if (
-                booleanPointInPolygon(
-                  point([userCoords[1], userCoords[0]]),
-                  turfPolygon(turfCoords)
-                )
-              )
-                shouldNotify = true;
+          if (!shouldNotify && settings.currentLocation && userCoords && centroids) {
+            const cityPos = centroids[a.city_name_he] || centroids[a.city_name];
+            if (cityPos) {
+              const dist = haversineKm(userCoords, cityPos);
+              if (dist <= LOCATION_RADIUS_KM) shouldNotify = true;
             }
           }
 
@@ -192,7 +206,7 @@ export function useFirebaseAlerts(): ActiveAlert[] {
     });
 
     return () => unsubscribe();
-  }, [settings, userCoords, polygons, cityRegions]);
+  }, [settings, userCoords, centroids, cityRegions]);
 
   function sendNotification(title: string, body: string, tag: string) {
     const options = {
