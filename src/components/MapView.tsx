@@ -30,7 +30,8 @@ const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
 const THEMES = {
   dark: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-  light: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw",
+  light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
+  google: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw",
 };
 
 
@@ -343,11 +344,13 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : settings.showImpactZones;
   const showMyLocation = settings.showMyLocation && userCoords !== null;
 
-  // Auto theme logic: URL param > Auto Theme setting > Manual theme
-  const sunCycle = useSunCycle(settings.autoTheme);
+  // Auto theme logic: URL param > Manual setting
+  const sunCycle = useSunCycle(settings.theme === "auto");
   const effectiveTheme = isBroadcast && rawTheme === "dark" ? "dark" 
     : isBroadcast && rawTheme === "light" ? "light"
-    : settings.autoTheme ? sunCycle.theme : theme;
+    : settings.theme === "auto" ? sunCycle.theme
+    : settings.theme === "google" ? "light" // Treat google as a light theme for UI
+    : settings.theme; // light or dark
 
   const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
 
@@ -446,13 +449,25 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           />
         )}
         {/* Base: dark tiles always present */}
-        <TileLayer url={THEMES.dark} attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' crossOrigin="anonymous" />
+        <TileLayer 
+          url={THEMES.dark} 
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' 
+          crossOrigin="anonymous" 
+          opacity={settings.theme === "google" ? 0 : 1}
+        />
         {/* Light tiles on top — opacity controls the blend */}
         <TileLayer
           url={THEMES.light}
-          opacity={settings.autoTheme ? sunCycle.dayFactor : effectiveTheme === "light" ? 1 : 0}
+          opacity={settings.theme === "google" ? 0 : (settings.theme === "auto" ? sunCycle.dayFactor : effectiveTheme === "light" ? 1 : 0)}
           crossOrigin="anonymous"
         />
+        {/* Google Maps Layer */}
+        {settings.theme === "google" && (
+          <TileLayer
+            url={THEMES.google}
+            crossOrigin="anonymous"
+          />
+        )}
 
         {mode === "live" && (
           <>
@@ -483,7 +498,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           </>
         )}
 
-        {effectiveTheme === "dark" && (
+        {settings.theme !== "google" && (
           <CityLabels 
             polygons={polygons} 
             theme={effectiveTheme} 

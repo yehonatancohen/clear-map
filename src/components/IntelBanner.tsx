@@ -471,34 +471,46 @@ export default function IntelPanel({
                   <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">תצוגה</div>
                   
                   {/* Theme Selector */}
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <button
-                      onClick={() => { updateSettings({ autoTheme: false }); onThemeChange("light"); }}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${!settings.autoTheme && theme === "light"
-                        ? "bg-white/20 text-white border border-white/20"
-                        : "bg-white/5 text-white/40 hover:bg-white/10"
-                        }`}
-                    >
-                      <span className="text-[12px] font-medium">בוקר</span>
-                    </button>
-                    <button
-                      onClick={() => updateSettings({ autoTheme: !settings.autoTheme })}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${settings.autoTheme
-                        ? "bg-amber-500/30 text-amber-200 border border-amber-400/30"
-                        : "bg-white/5 text-white/40 hover:bg-white/10"
-                        }`}
-                    >
-                      <span className="text-[12px] font-medium">אוטומטי</span>
-                    </button>
-                    <button
-                      onClick={() => { updateSettings({ autoTheme: false }); onThemeChange("dark"); handleDarkSecretTap(); }}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${!settings.autoTheme && theme === "dark"
-                        ? "bg-white/20 text-white border border-white/20"
-                        : "bg-white/5 text-white/40 hover:bg-white/10"
-                        }`}
-                    >
-                      <span className="text-[12px] font-medium">לילה</span>
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">ערכת נושא</div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => { updateSettings({ theme: "light" }); onThemeChange("light"); }}
+                        className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${settings.theme === "light"
+                          ? "bg-white/20 text-white border border-white/20"
+                          : "bg-white/5 text-white/40 hover:bg-white/10"
+                          }`}
+                      >
+                        <span className="text-[12px] font-medium">בוקר</span>
+                      </button>
+                      <button
+                        onClick={() => { updateSettings({ theme: "auto" }); }}
+                        className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${settings.theme === "auto"
+                          ? "bg-amber-500/30 text-amber-200 border border-amber-400/30"
+                          : "bg-white/5 text-white/40 hover:bg-white/10"
+                          }`}
+                      >
+                        <span className="text-[12px] font-medium">אוטומטי</span>
+                      </button>
+                      <button
+                        onClick={() => { updateSettings({ theme: "dark" }); onThemeChange("dark"); handleDarkSecretTap(); }}
+                        className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${settings.theme === "dark"
+                          ? "bg-white/20 text-white border border-white/20"
+                          : "bg-white/5 text-white/40 hover:bg-white/10"
+                          }`}
+                      >
+                        <span className="text-[12px] font-medium">לילה</span>
+                      </button>
+                      <button
+                        onClick={() => { updateSettings({ theme: "google" }); onThemeChange("light"); }}
+                        className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${settings.theme === "google"
+                          ? "bg-blue-500/30 text-blue-200 border border-blue-400/30"
+                          : "bg-white/5 text-white/40 hover:bg-white/10"
+                          }`}
+                      >
+                        <span className="text-[12px] font-medium">Google Maps</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* UAV Path Toggle */}
