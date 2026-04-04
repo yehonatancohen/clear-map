@@ -56,9 +56,6 @@ function clusterDistanceKm(lat: number): number {
 const HIT_AREA_SCALE = 0.25;
 /** Fine-tune the ellipse rotation (degrees). Positive = clockwise. */
 const ELLIPSE_ROTATION_OFFSET_DEG = 0;
-// Israel approximate center for launch direction heuristic
-const ISRAEL_CENTER_LAT = 31.5;
-const ISRAEL_CENTER_LNG = 34.8;
 
 function toRad(deg: number) { return (deg * Math.PI) / 180; }
 function toDeg(rad: number) { return (rad * 180) / Math.PI; }
@@ -69,7 +66,6 @@ function toDeg(rad: number) { return (rad * 180) / Math.PI; }
  */
 function getConvexHull(points: [number, number][]): [number, number][] {
   if (points.length <= 2) return points;
-  // Sort by lat, then lng
   const sorted = [...points].sort((a, b) => a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]);
 
   const crossProduct = (a: [number, number], b: [number, number], c: [number, number]) =>
@@ -116,10 +112,6 @@ function haversineKm(a: [number, number], b: [number, number]): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-/**
- * Simple union-find / DBSCAN-style clustering by distance.
- * Groups city centroids that are within CLUSTER_DISTANCE_KM of each other.
- */
 /** Approximate polygon radius: max distance from centroid to any boundary vertex (km). */
 function polygonRadius(poly: [number, number][], cent: [number, number]): number {
   let max = 0;
@@ -148,25 +140,20 @@ function clusterCentroids(
     if (ra !== rb) parent[ra] = rb;
   }
 
-  // Unite cities whose centroids are within the cluster threshold AND occurred within the time gap.
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       if (items[i].status !== items[j].status) continue;
 
-      // Time check (Barrage window)
       const timeDist = Math.abs(items[i].timestamp - items[j].timestamp);
       if (timeDist > MAX_BARRAGE_TIME_GAP_MS) continue;
 
-      // Space check (Anisotropic Barrage radius)
-      // We are stricter about North-South separation to avoid mixing distinct regional barrages.
       const avgLat = (items[i].centroid[0] + items[j].centroid[0]) / 2;
       const dy = (items[i].centroid[0] - items[j].centroid[0]) * 111.32;
       const dx = (items[i].centroid[1] - items[j].centroid[1]) * 111.32 * Math.cos(toRad(avgLat));
 
       const thresholdWE = clusterDistanceKm(avgLat);
-      const thresholdNS = thresholdWE * 0.65; // Stricter N-S threshold (approx 10-20km)
+      const thresholdNS = thresholdWE * 0.65;
 
-      // Use elliptical distance formula: (dy/thresholdNS)^2 + (dx/thresholdWE)^2 <= 1.0
       const normDistSq = (dy / thresholdNS) ** 2 + (dx / thresholdWE) ** 2;
       if (normDistSq <= 1.0) {
         unite(i, j);
@@ -294,11 +281,6 @@ function nearestCoastlineSegment(p: [number, number]): { dist: number; segIdx: n
   return { dist: bestDist, segIdx: bestSeg, point: bestPoint };
 }
 
-/** How close an individual city must be to be considered "coastal" (km). */
-const CITY_COAST_THRESHOLD_KM = 6;
-/** Minimum number of coastal cities in a cluster to trigger mirroring. */
-const MIN_COASTAL_CITIES_FOR_MIRROR = 3;
-
 function generateEllipseRing(
   center_: [number, number],
   semiMajorKm: number,
@@ -330,21 +312,18 @@ function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, sem
   const bearing1 = ((majorAxisAngleDeg % 360) + 360) % 360;
   const bearing2 = (bearing1 + 180) % 360;
 
-  // Preference order: Lebanon (North) > East > Gaza (SW)
-  const isLebanonLat = center[0] > 32.9; // If cluster is very far North, default to Lebanon
-  const isSouthOfRishon = center[0] < 32.0; // Rishon is ~31.97
-  const isCoastal = center[1] < 34.85; // Close to Mediterranean coast
+  const isLebanonLat = center[0] > 32.9;
+  const isSouthOfRishon = center[0] < 32.0;
+  const isCoastal = center[1] < 34.85;
 
   function isWest(b: number) { return b >= 240 && b <= 300; }
   let bearingDeg = bearing1;
 
   if (isLebanonLat) {
-    // For northern clusters, pick the vector that points most North (closest to 0 or 360)
     const diff1 = Math.min(Math.abs(bearing1), Math.abs(bearing1 - 360));
     const diff2 = Math.min(Math.abs(bearing2), Math.abs(bearing2 - 360));
     bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
   } else if (isSouthOfRishon) {
-    // For southern clusters, pick the vector that points most South (closest to 180)
     const diff1 = Math.abs(bearing1 - 180);
     const diff2 = Math.abs(bearing2 - 180);
     bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
@@ -366,29 +345,20 @@ function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, sem
   let source = "מקור לא ידוע";
   let distanceKm = 100;
 
-  // North (Lebanon/Syria)
   if (bearingDeg >= 315 || bearingDeg <= 45 || (isLebanonLat && (bearingDeg >= 300 || bearingDeg <= 60))) {
     source = "לבנון";
     const distToBorderKm = Math.max(0, (33.1 - center[0]) * 111.32);
     distanceKm = distToBorderKm + 20 + stretch * 15;
-  }
-  // West (Mediterranean / Sea-based)
-  else if (isWest(bearingDeg)) {
+  } else if (isWest(bearingDeg)) {
     source = "הים התיכון (שיגור ימי)";
     distanceKm = 30 + stretch * 20;
-  }
-  // East (Iran/Iraq)
-  else if (bearingDeg > 45 && bearingDeg < 135) {
+  } else if (bearingDeg > 45 && bearingDeg < 135) {
     source = stretch > 3 ? "איראן" : "עיראק/סוריה";
     distanceKm = 1000 + stretch * 150;
-  }
-  // South/South-East (Yemen)
-  else if (bearingDeg >= 135 && bearingDeg <= 210) {
+  } else if (bearingDeg >= 135 && bearingDeg <= 210) {
     source = "תימן";
     distanceKm = 1800 + stretch * 50;
-  }
-  // South West / General local (Gaza/Sinai)
-  else {
+  } else {
     source = "עזה/סיני";
     distanceKm = 40 + stretch * 10;
   }
@@ -408,12 +378,10 @@ export function useImpactEllipses(
   return useMemo(() => {
     if (!polygons || alerts.length === 0) return [];
 
-    // Only compute for actual alerts (e.g. rockets), skip pre_alerts
     const relevant = alerts.filter(a => a.status === "alert");
     if (relevant.length < MIN_CITIES_FOR_ELLIPSE) return [];
 
-    // Compute centroid for each alert's city polygon
-    const items: { cityName: string; centroid: [number, number]; status: string; radius: number }[] = [];
+    const items: { cityName: string; centroid: [number, number]; status: string; radius: number; timestamp: number }[] = [];
     const seen = new Set<string>();
     for (const alert of relevant) {
       if (seen.has(alert.city_name_he)) continue;
@@ -433,67 +401,47 @@ export function useImpactEllipses(
 
     if (items.length < MIN_CITIES_FOR_ELLIPSE) return [];
 
-    // Cluster by proximity
     const clusters = clusterCentroids(items);
     const results: ImpactEllipse[] = [];
 
     for (const cluster of clusters) {
       if (cluster.length < MIN_CITIES_FOR_ELLIPSE) continue;
 
-      // --- PIPELINE STEP 1: EXTRACT & HULL ---
-      // Get all vertices of the land alert polygons
-      let allLandVertices: [number, number][] = [];
+      // STEP 1: Convex hull of all land alert polygon vertices
+      const allLandVertices: [number, number][] = [];
       for (const item of cluster) {
         const poly = polygons[item.cityName]?.polygon || [];
-        for (const pt of poly) {
-          allLandVertices.push(pt);
-        }
+        for (const pt of poly) allLandVertices.push(pt);
       }
-      // Calculate the Convex Hull of the land alert polygons
       const landHull = getConvexHull(allLandVertices);
       const landCentroid = centroid(landHull);
 
-      // --- PIPELINE STEP 2: FIND TRAJECTORY (MAJOR AXIS) ---
-      // Run PCA on the hull points to find the exact angle of attack.
+      // STEP 2: PCA angle of land hull
       const hullAngleDeg = pcaAnglePoints(landHull);
 
-      // Use estimateOrigin heuristic to get an initial trajectory bearing
-      const { bearingDeg: initialBearingDeg } = estimateOrigin(
-        landCentroid, hullAngleDeg, 5, 5
-      );
-
-      // --- PIPELINE STEP 3: FIND THE CENTER ---
-      // Rotate the hull points so the major axis (attack angle) is perfectly horizontal.
+      // STEP 3: Bounding box center along initial bearing
+      const { bearingDeg: initialBearingDeg } = estimateOrigin(landCentroid, hullAngleDeg, 5, 5);
       const rotRad = toRad(initialBearingDeg);
       const cosR = Math.cos(rotRad);
       const sinR = Math.sin(rotRad);
 
       let minX = Infinity, maxX = -Infinity;
       let minY = Infinity, maxY = -Infinity;
-      const rotatedHull: [number, number][] = [];
 
       for (const pt of landHull) {
         const dy = (pt[0] - landCentroid[0]) * 111.32;
         const dx = (pt[1] - landCentroid[1]) * 111.32 * Math.cos(toRad(landCentroid[0]));
-        // Rotate so launchBearing is the +Y axis (forward)
         const rx = dx * cosR - dy * sinR;
         const ry = dx * sinR + dy * cosR;
-        rotatedHull.push([rx, ry]);
         if (rx < minX) minX = rx;
         if (rx > maxX) maxX = rx;
         if (ry < minY) minY = ry;
         if (ry > maxY) maxY = ry;
       }
 
-      // Your center is exactly in the middle along the trajectory axis
       const xv = (minX + maxX) / 2;
       const yv = (minY + maxY) / 2;
-
-      const [cLatOff, cLngOff] = kmToLatLng(
-        xv * sinR + yv * cosR, // back to dy
-        xv * cosR - yv * sinR, // back to dx
-        landCentroid[0]
-      );
+      const [cLatOff, cLngOff] = kmToLatLng(xv * sinR + yv * cosR, xv * cosR - yv * sinR, landCentroid[0]);
       const center_: [number, number] = [landCentroid[0] + cLatOff, landCentroid[1] + cLngOff];
 
       const hasCoastalCity = cluster.some(item => nearestCoastlineSegment(item.centroid).dist < 12);
@@ -501,12 +449,12 @@ export function useImpactEllipses(
       const isCoastalDeepBarrage = hasCoastalCity && barrageDepthKm > 14;
 
       let attackBearingDeg = hullAngleDeg;
-      let finalCenter = center_; // <-- Use the calculated bounding-box center
-      let finalMirrors: [number, number][] = []; let allPoints: [number, number][] = [...landHull];
+      let finalCenter = landCentroid;
+      let finalMirrors: [number, number][] = [];
+      let allPoints: [number, number][] = [...landHull];
       let landOutlineSegments: [number, number][][] = [];
 
       if (isCoastalDeepBarrage) {
-        // --- MIRROR: reflect land hull through the coastline edge of the hull ---
         const coastalHullPoints = landHull.filter(p => nearestCoastlineSegment(p).dist < 8);
         const coastPivot = coastalHullPoints.length > 0
           ? centroid(coastalHullPoints)
@@ -514,13 +462,10 @@ export function useImpactEllipses(
         const seaMirrors = generateSeaMirrorPoints(landHull, coastPivot);
 
         finalMirrors = seaMirrors;
-        // Center = coastPivot: allPoints is symmetric about it, so extents are equal land/sea.
         finalCenter = coastPivot;
         allPoints = [...landHull, ...seaMirrors];
-        // Only use the real land impacts to determine the trajectory angle
-        attackBearingDeg = pcaAnglePoints(landHull);
+        attackBearingDeg = pcaAnglePoints(allPoints);
 
-        // --- OUTLINE: hull edges that are NOT along the coastline ---
         const hullCentroid = centroid(landHull);
         const nHull = landHull.length;
         for (let i = 0; i < nHull; i++) {
@@ -534,9 +479,7 @@ export function useImpactEllipses(
         }
       }
 
-      // 6. FINAL GEOMETRY: find the angle that produces the minimum bounding-box area
-      // over the full 0–180° range (ellipses are symmetric, so 180° covers all orientations).
-      // 1° steps give sub-degree precision without being expensive.
+      // Find the minimum bounding-box area angle over 0–180°
       {
         let bestAngle = attackBearingDeg;
         let bestArea = Infinity;
@@ -547,52 +490,24 @@ export function useImpactEllipses(
         }
         attackBearingDeg = bestAngle;
       }
-      // 1. Measure extents using the pure, un-offset geographic angle
-      let { semiMajor, semiMinor } = extentsAlongAnglePoints(allPoints, finalCenter, attackBearingDeg);
+      attackBearingDeg += ELLIPSE_ROTATION_OFFSET_DEG;
 
-      // 2. Lock orientation: Force semiMajor to always be the longest axis
-      if (semiMinor > semiMajor) {
-        const temp = semiMajor;
-        semiMajor = semiMinor;
-        semiMinor = temp;
-        attackBearingDeg = (attackBearingDeg + 90) % 360;
-      }
-
-      // 3. Add visual map offset ONLY for the drawing functions
-      const drawingAngleDeg = attackBearingDeg + ELLIPSE_ROTATION_OFFSET_DEG;
-
-      const ellipseRing = generateEllipseRing(finalCenter, semiMajor, semiMinor, drawingAngleDeg);
-      const hitAreaRing = generateEllipseRing(finalCenter, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, drawingAngleDeg);
-      // Prevent 90-degree flips: ensure semiMajor is always the longest axis
-      let finalSemiMajor = semiMajor;
-      let finalSemiMinor = semiMinor;
-      let finalAngleDeg = attackBearingDeg;
-
-      if (semiMinor > semiMajor) {
-        finalSemiMajor = semiMinor;
-        finalSemiMinor = semiMajor;
-        finalAngleDeg = (attackBearingDeg + 90) % 360;
-      }
+      const { semiMajor, semiMinor } = extentsAlongAnglePoints(allPoints, finalCenter, attackBearingDeg);
+      const ellipseRing = generateEllipseRing(finalCenter, semiMajor, semiMinor, attackBearingDeg);
+      const hitAreaRing = generateEllipseRing(finalCenter, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, attackBearingDeg);
 
       const { source: launchSource } = estimateOrigin(landCentroid, attackBearingDeg, semiMajor, semiMinor);
       const arrowLength = Math.max(barrageDepthKm * 0.6, 10);
 
-      // Arrow points from land toward sea: use the coast-perpendicular direction.
-      // The coastline segment direction gives us the coast-parallel vector; rotate 90° toward the sea (west).
       let arrowAngleDeg = attackBearingDeg;
       if (finalMirrors.length > 0) {
         const { segIdx } = nearestCoastlineSegment(landCentroid);
         const cA = COASTLINE_WAYPOINTS[segIdx];
         const cB = COASTLINE_WAYPOINTS[segIdx + 1];
-        // Coast-parallel vector (north, east)
         const cpN = (cB[0] - cA[0]);
         const cpE = (cB[1] - cA[1]) * Math.cos(toRad(cA[0]));
-        // Rotate 90° CCW to get coast-perpendicular pointing west (toward sea)
-        // perpendicular = (-cpE, cpN) in (north, east) → points west for a N→S coastline
         const seaN = -cpE, seaE = cpN;
-        // Ensure it points west (seaE < 0 for Israel's west coast)
         const sign = seaE < 0 ? 1 : -1;
-        // pcaAngle convention: atan2(north, east) - 90
         arrowAngleDeg = toDeg(Math.atan2(sign * seaN, sign * seaE)) - 90;
       }
 
@@ -607,12 +522,12 @@ export function useImpactEllipses(
         center: finalCenter,
         ellipseRing,
         hitAreaRing,
-        majorAxisAngleDeg: finalAngleDeg,
+        majorAxisAngleDeg: attackBearingDeg,
         launchBearingDeg: attackBearingDeg,
         launchDistanceKm: 100,
         launchSource,
-        semiMajorKm: finalSemiMajor,
-        semiMinorKm: finalSemiMinor,
+        semiMajorKm: semiMajor,
+        semiMinorKm: semiMinor,
         status: cluster[0].status,
         mirroredPoints: finalMirrors,
         parabolaRing: [],
