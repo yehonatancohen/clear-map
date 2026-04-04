@@ -28,26 +28,68 @@ export interface ImpactEllipse {
   mirroredPoints?: [number, number][];
   /** Optional mirrored polygons in the sea */
   mirroredPolygons?: [number, number][][];
+  /** Parabola outline ring */
+  parabolaRing?: [number, number][];
+  /** Parabola heading data */
+  parabolaHeading?: {
+    origin: [number, number];
+    destination: [number, number];
+    angle: number;
+  };
+  /** Convex hull of the original land alert polygons */
+  landHull?: [number, number][];
+  /** Filtered segments of the land hull that are NOT along the coastline */
+  landOutlineSegments?: [number, number][][];
 }
 
 const MIN_CITIES_FOR_ELLIPSE = 3;
 const ELLIPSE_POINTS = 64;
 /**
  * Cluster distance scales with latitude: denser in the north, sparser in the south.
- * 20 km at lat ≥ 33 (Galilee/north), up to 50 km at lat ≤ 30 (deep Negev/Eilat).
+ * Tightened to separate distinct metropolitan barrages (e.g., Tel Aviv vs. Netanya).
  */
 function clusterDistanceKm(lat: number): number {
   const t = Math.max(0, Math.min(1, (33.0 - lat) / 3.0));
-  return 20 + t * 30;
+  return 15 + t * 15; // 15km in North (dense), 30km in South (sparse)
 }
 /** Inner hit-area ellipse is this fraction of the outer ellipse */
 const HIT_AREA_SCALE = 0.25;
+/** Fine-tune the ellipse rotation (degrees). Positive = clockwise. */
+const ELLIPSE_ROTATION_OFFSET_DEG = 0;
 // Israel approximate center for launch direction heuristic
 const ISRAEL_CENTER_LAT = 31.5;
 const ISRAEL_CENTER_LNG = 34.8;
 
 function toRad(deg: number) { return (deg * Math.PI) / 180; }
 function toDeg(rad: number) { return (rad * 180) / Math.PI; }
+
+/**
+ * Convex Hull (Monotone Chain algorithm).
+ * Returns the boundary points of the hull in clockwise/counter-clockwise order.
+ */
+function getConvexHull(points: [number, number][]): [number, number][] {
+  if (points.length <= 2) return points;
+  // Sort by lat, then lng
+  const sorted = [...points].sort((a, b) => a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]);
+
+  const crossProduct = (a: [number, number], b: [number, number], c: [number, number]) =>
+    (b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]);
+
+  const upper = [];
+  for (const p of sorted) {
+    while (upper.length >= 2 && crossProduct(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  const lower = [];
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const p = sorted[i];
+    while (lower.length >= 2 && crossProduct(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  upper.pop();
+  lower.pop();
+  return upper.concat(lower);
+}
 
 function kmToLatLng(kmNorth: number, kmEast: number, atLat: number): [number, number] {
   const dLat = kmNorth / 111.32;
@@ -88,9 +130,12 @@ function polygonRadius(poly: [number, number][], cent: [number, number]): number
   return max;
 }
 
+/** Maximum time gap between alerts to be considered part of the same barrage (ms). */
+const MAX_BARRAGE_TIME_GAP_MS = 3 * 60 * 1000; // 3 minutes
+
 function clusterCentroids(
-  items: { cityName: string; centroid: [number, number]; status: string; radius: number }[],
-): { cityName: string; centroid: [number, number]; status: string; radius: number }[][] {
+  items: { cityName: string; centroid: [number, number]; status: string; radius: number; timestamp: number }[],
+): { cityName: string; centroid: [number, number]; status: string; radius: number; timestamp: number }[][] {
   const n = items.length;
   const parent = Array.from({ length: n }, (_, i) => i);
 
@@ -103,15 +148,27 @@ function clusterCentroids(
     if (ra !== rb) parent[ra] = rb;
   }
 
-  // Unite cities whose polygon borders are within the cluster threshold.
-  // Border-to-border distance ≈ centroid distance − sum of polygon radii.
+  // Unite cities whose centroids are within the cluster threshold AND occurred within the time gap.
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       if (items[i].status !== items[j].status) continue;
-      const centDist = haversineKm(items[i].centroid, items[j].centroid);
-      const borderDist = Math.max(0, centDist - items[i].radius - items[j].radius);
+
+      // Time check (Barrage window)
+      const timeDist = Math.abs(items[i].timestamp - items[j].timestamp);
+      if (timeDist > MAX_BARRAGE_TIME_GAP_MS) continue;
+
+      // Space check (Anisotropic Barrage radius)
+      // We are stricter about North-South separation to avoid mixing distinct regional barrages.
       const avgLat = (items[i].centroid[0] + items[j].centroid[0]) / 2;
-      if (borderDist <= clusterDistanceKm(avgLat)) {
+      const dy = (items[i].centroid[0] - items[j].centroid[0]) * 111.32;
+      const dx = (items[i].centroid[1] - items[j].centroid[1]) * 111.32 * Math.cos(toRad(avgLat));
+
+      const thresholdWE = clusterDistanceKm(avgLat);
+      const thresholdNS = thresholdWE * 0.65; // Stricter N-S threshold (approx 10-20km)
+
+      // Use elliptical distance formula: (dy/thresholdNS)^2 + (dx/thresholdWE)^2 <= 1.0
+      const normDistSq = (dy / thresholdNS) ** 2 + (dx / thresholdWE) ** 2;
+      if (normDistSq <= 1.0) {
         unite(i, j);
       }
     }
@@ -127,23 +184,17 @@ function clusterCentroids(
   return Array.from(groups.values()).map(indices => indices.map(i => items[i]));
 }
 
-/**
- * PCA angle from city centroids only.
- * Using centroids (one point per city) means the orientation reflects how the
- * cities are spatially arranged, not the internal shape of their polygons.
- * Large polygon cities (e.g. Tel Aviv) would otherwise dominate the covariance.
- */
-function pcaAngle(cityCentroids: [number, number][]): number {
-  const c = centroid(cityCentroids);
+function pcaAnglePoints(points: [number, number][]): number {
+  const c = centroid(points);
   let cxx = 0, cxy = 0, cyy = 0;
-  for (const [lat, lng] of cityCentroids) {
+  for (const [lat, lng] of points) {
     const dy = (lat - c[0]) * 111.32;
     const dx = (lng - c[1]) * 111.32 * Math.cos(toRad(c[0]));
     cxx += dx * dx;
     cxy += dx * dy;
     cyy += dy * dy;
   }
-  const n = cityCentroids.length;
+  const n = points.length;
   cxx /= n; cxy /= n; cyy /= n;
 
   const trace = cxx + cyy;
@@ -155,24 +206,8 @@ function pcaAngle(cityCentroids: [number, number][]): number {
   return toDeg(Math.atan2(cxy, lambda1 - cyy)) - 90;
 }
 
-/**
- * Extrapolated ellipse extents that handle coastline clipping.
- *
- * For each city in the cluster, we measure its polygon extent in all four
- * axis-aligned directions (±major, ±minor) relative to its own centroid.
- * We then use max(+side, −side) as the city's "symmetric radius" along each
- * axis — if the sea side is clipped at the coastline and thus shorter than
- * the land side, the land-side radius is mirrored to fill in the sea area.
- * If both sides are roughly equal (open land city) nothing changes.
- *
- * The global semi-axes are then:
- *   semiAxis = max over all cities of (centroid_projection + symmetric_radius)
- * taken independently in the positive and negative directions, then the larger
- * of the two becomes the final semi-axis (symmetric ellipse).
- */
-function extentsAlongAngleExtrapolated(
-  cluster: { cityName: string; centroid: [number, number]; polygon?: [number, number][] }[],
-  polygons: PolygonLookup,
+function extentsAlongAnglePoints(
+  points: [number, number][],
   center_: [number, number],
   angleDeg: number,
 ): { semiMajor: number; semiMinor: number } {
@@ -180,64 +215,36 @@ function extentsAlongAngleExtrapolated(
   const cosR = Math.cos(rotRad);
   const sinR = Math.sin(rotRad);
 
-  let posMajor = 0, negMajor = 0;
-  let posMinor = 0, negMinor = 0;
+  let maxMajor = 0, maxMinor = 0;
 
-  for (const item of cluster) {
-    const poly = item.polygon || polygons[item.cityName]?.polygon;
+  for (const [lat, lng] of points) {
+    const dy = (lat - center_[0]) * 111.32;
+    const dx = (lng - center_[1]) * 111.32 * Math.cos(toRad(center_[0]));
+    const pMajor = -dx * sinR + dy * cosR;
+    const pMinor = dx * cosR + dy * sinR;
 
-    // Centroid projection onto axes relative to cluster center
-    const cdy = (item.centroid[0] - center_[0]) * 111.32;
-    const cdx = (item.centroid[1] - center_[1]) * 111.32 * Math.cos(toRad(center_[0]));
-    const cMajor = -cdx * sinR + cdy * cosR;
-    const cMinor = cdx * cosR + cdy * sinR;
-
-    let radiusMajor: number;
-    let radiusMinor: number;
-
-    if (poly?.length) {
-      // Real city or mirrored polygon: compute extent from polygon vertices
-      let cityPosMajor = 0, cityNegMajor = 0;
-      let cityPosMinor = 0, cityNegMinor = 0;
-
-      for (const [lat, lng] of poly) {
-        const dy = (lat - item.centroid[0]) * 111.32;
-        const dx = (lng - item.centroid[1]) * 111.32 * Math.cos(toRad(item.centroid[0]));
-        const pMajor = -dx * sinR + dy * cosR;
-        const pMinor = dx * cosR + dy * sinR;
-
-        if (pMajor > cityPosMajor) cityPosMajor = pMajor;
-        if (-pMajor > cityNegMajor) cityNegMajor = -pMajor;
-        if (pMinor > cityPosMinor) cityPosMinor = pMinor;
-        if (-pMinor > cityNegMinor) cityNegMinor = -pMinor;
-      }
-
-      // Symmetric radius: mirror the larger (non-clipped) side onto the smaller
-      // (potentially coast-clipped) side so the ellipse extends over the sea.
-      radiusMajor = Math.max(cityPosMajor, cityNegMajor);
-      radiusMinor = Math.max(cityPosMinor, cityNegMinor);
-    } else {
-      // Virtual point: use a small default radius (just the centroid matters
-      // for pushing the ellipse extent seaward)
-      radiusMajor = 1.0;
-      radiusMinor = 1.0;
-    }
-
-    // Global extent from cluster center, both directions
-    if (cMajor + radiusMajor > posMajor) posMajor = cMajor + radiusMajor;
-    if (-cMajor + radiusMajor > negMajor) negMajor = -cMajor + radiusMajor;
-    if (cMinor + radiusMinor > posMinor) posMinor = cMinor + radiusMinor;
-    if (-cMinor + radiusMinor > negMinor) negMinor = -cMinor + radiusMinor;
+    if (Math.abs(pMajor) > maxMajor) maxMajor = Math.abs(pMajor);
+    if (Math.abs(pMinor) > maxMinor) maxMinor = Math.abs(pMinor);
   }
 
   return {
-    semiMajor: Math.max(Math.max(posMajor, negMajor) * 1, 1.0),
-    semiMinor: Math.max(Math.max(posMinor, negMinor) * 1, 1),
+    semiMajor: Math.max(maxMajor, 1.0),
+    semiMinor: Math.max(maxMinor, 1.0),
   };
 }
 
+function generateSeaMirrorPoints(
+  points: [number, number][],
+  center: [number, number]
+): [number, number][] {
+  return points.map(([lat, lng]) => [
+    2 * center[0] - lat,
+    2 * center[1] - lng,
+  ] as [number, number]);
+}
+
 // Israel Mediterranean coastline waypoints (lat, lon), Rosh HaNikra → Rafah
-const COASTLINE_WAYPOINTS: [number, number][] = [
+export const COASTLINE_WAYPOINTS: [number, number][] = [
   [33.09, 35.10], // Rosh HaNikra
   [32.93, 35.07], // Akko
   [32.83, 34.99], // Haifa
@@ -251,11 +258,6 @@ const COASTLINE_WAYPOINTS: [number, number][] = [
   [31.35, 34.35], // Northern Gaza coast
   [31.27, 34.22], // Rafah
 ];
-
-/** How close an individual city must be to be considered "coastal" (km). */
-const CITY_COAST_THRESHOLD_KM = 6;
-/** Minimum number of coastal cities in a cluster to trigger mirroring. */
-const MIN_COASTAL_CITIES_FOR_MIRROR = 3;
 
 /**
  * Find the nearest segment index, distance, and the actual point on the coastline polyline to a given point.
@@ -292,38 +294,10 @@ function nearestCoastlineSegment(p: [number, number]): { dist: number; segIdx: n
   return { dist: bestDist, segIdx: bestSeg, point: bestPoint };
 }
 
-/**
- * Generate virtual "sea mirror" alerts using Point Reflection.
- * 
- * Each land alert vertex (x, y) is reflected through the cluster reflectionCenter (xc, yc)
- * using the formula: x' = 2*xc - x, y' = 2*yc - y.
- * This creates a point-symmetric distribution that results in a proper convex ellipse.
- */
-function generateSeaMirrorAlerts(
-  cluster: { cityName: string; centroid: [number, number]; radius: number }[],
-  polygons: PolygonLookup,
-  reflectionCenter: [number, number]
-): { cityName: string; centroid: [number, number]; polygon: [number, number][]; radius: number }[] {
-  return cluster.map((item, idx) => {
-    const poly = polygons[item.cityName]?.polygon || [];
-
-    const mirroredCentroid: [number, number] = [
-      2 * reflectionCenter[0] - item.centroid[0],
-      2 * reflectionCenter[1] - item.centroid[1],
-    ];
-    const mirroredPolygon = poly.map(([lat, lng]) => [
-      2 * reflectionCenter[0] - lat,
-      2 * reflectionCenter[1] - lng,
-    ] as [number, number]);
-
-    return {
-      cityName: `__mirrored_${idx}_${item.cityName}`,
-      centroid: mirroredCentroid,
-      polygon: mirroredPolygon,
-      radius: item.radius,
-    };
-  });
-}
+/** How close an individual city must be to be considered "coastal" (km). */
+const CITY_COAST_THRESHOLD_KM = 6;
+/** Minimum number of coastal cities in a cluster to trigger mirroring. */
+const MIN_COASTAL_CITIES_FOR_MIRROR = 3;
 
 function generateEllipseRing(
   center_: [number, number],
@@ -453,6 +427,7 @@ export function useImpactEllipses(
         centroid: cent,
         status: alert.status,
         radius: polygonRadius(poly.polygon, cent),
+        timestamp: alert.timestamp,
       });
     }
 
@@ -465,73 +440,189 @@ export function useImpactEllipses(
     for (const cluster of clusters) {
       if (cluster.length < MIN_CITIES_FOR_ELLIPSE) continue;
 
-      // 1. Calculate the latitude span of the land cluster
-      let minLat = 90, maxLat = -90;
+      // --- PIPELINE STEP 1: EXTRACT & HULL ---
+      // Get all vertices of the land alert polygons
+      let allLandVertices: [number, number][] = [];
       for (const item of cluster) {
         const poly = polygons[item.cityName]?.polygon || [];
-        for (const [lat] of poly) {
-          if (lat < minLat) minLat = lat;
-          if (lat > maxLat) maxLat = lat;
+        for (const pt of poly) {
+          allLandVertices.push(pt);
+        }
+      }
+      // Calculate the Convex Hull of the land alert polygons
+      const landHull = getConvexHull(allLandVertices);
+      const landCentroid = centroid(landHull);
+
+      // --- PIPELINE STEP 2: FIND TRAJECTORY (MAJOR AXIS) ---
+      // Run PCA on the hull points to find the exact angle of attack.
+      const hullAngleDeg = pcaAnglePoints(landHull);
+
+      // Use estimateOrigin heuristic to get an initial trajectory bearing
+      const { bearingDeg: initialBearingDeg } = estimateOrigin(
+        landCentroid, hullAngleDeg, 5, 5
+      );
+
+      // --- PIPELINE STEP 3: FIND THE CENTER ---
+      // Rotate the hull points so the major axis (attack angle) is perfectly horizontal.
+      const rotRad = toRad(initialBearingDeg);
+      const cosR = Math.cos(rotRad);
+      const sinR = Math.sin(rotRad);
+
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      const rotatedHull: [number, number][] = [];
+
+      for (const pt of landHull) {
+        const dy = (pt[0] - landCentroid[0]) * 111.32;
+        const dx = (pt[1] - landCentroid[1]) * 111.32 * Math.cos(toRad(landCentroid[0]));
+        // Rotate so launchBearing is the +Y axis (forward)
+        const rx = dx * cosR - dy * sinR;
+        const ry = dx * sinR + dy * cosR;
+        rotatedHull.push([rx, ry]);
+        if (rx < minX) minX = rx;
+        if (rx > maxX) maxX = rx;
+        if (ry < minY) minY = ry;
+        if (ry > maxY) maxY = ry;
+      }
+
+      // Your center is exactly in the middle along the trajectory axis
+      const xv = (minX + maxX) / 2;
+      const yv = (minY + maxY) / 2;
+
+      const [cLatOff, cLngOff] = kmToLatLng(
+        xv * sinR + yv * cosR, // back to dy
+        xv * cosR - yv * sinR, // back to dx
+        landCentroid[0]
+      );
+      const center_: [number, number] = [landCentroid[0] + cLatOff, landCentroid[1] + cLngOff];
+
+      const hasCoastalCity = cluster.some(item => nearestCoastlineSegment(item.centroid).dist < 12);
+      const barrageDepthKm = maxY - minY;
+      const isCoastalDeepBarrage = hasCoastalCity && barrageDepthKm > 14;
+
+      let attackBearingDeg = hullAngleDeg;
+      let finalCenter = center_; // <-- Use the calculated bounding-box center
+      let finalMirrors: [number, number][] = []; let allPoints: [number, number][] = [...landHull];
+      let landOutlineSegments: [number, number][][] = [];
+
+      if (isCoastalDeepBarrage) {
+        // --- MIRROR: reflect land hull through the coastline edge of the hull ---
+        const coastalHullPoints = landHull.filter(p => nearestCoastlineSegment(p).dist < 8);
+        const coastPivot = coastalHullPoints.length > 0
+          ? centroid(coastalHullPoints)
+          : nearestCoastlineSegment(landCentroid).point;
+        const seaMirrors = generateSeaMirrorPoints(landHull, coastPivot);
+
+        finalMirrors = seaMirrors;
+        // Center = coastPivot: allPoints is symmetric about it, so extents are equal land/sea.
+        finalCenter = coastPivot;
+        allPoints = [...landHull, ...seaMirrors];
+        // Only use the real land impacts to determine the trajectory angle
+        attackBearingDeg = pcaAnglePoints(landHull);
+
+        // --- OUTLINE: hull edges that are NOT along the coastline ---
+        const hullCentroid = centroid(landHull);
+        const nHull = landHull.length;
+        for (let i = 0; i < nHull; i++) {
+          const p1 = landHull[i];
+          const p2 = landHull[(i + 1) % nHull];
+          const mid: [number, number] = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2];
+          const { dist: distMid } = nearestCoastlineSegment(mid);
+          const isWestOfCentroid = mid[1] < hullCentroid[1] + 0.02;
+          if (isWestOfCentroid && distMid < 5.0) continue;
+          landOutlineSegments.push([p1, p2]);
         }
       }
 
-      // 2. Determine a South-shifted pivot latitude.
-      // Midpoint (0.5) would align the bottom of sea with the bottom of land.
-      // 0.46 balances the vertical alignment to keep the top from being "too high".
-      const latPivot = minLat + (maxLat - minLat) * 0.46;
-      const landCentroids = cluster.map(item => item.centroid);
-      const landCenter = centroid(landCentroids);
+      // 6. FINAL GEOMETRY: find the angle that produces the minimum bounding-box area
+      // over the full 0–180° range (ellipses are symmetric, so 180° covers all orientations).
+      // 1° steps give sub-degree precision without being expensive.
+      {
+        let bestAngle = attackBearingDeg;
+        let bestArea = Infinity;
+        for (let a = 0; a < 180; a += 1) {
+          const e = extentsAlongAnglePoints(allPoints, finalCenter, a);
+          const area = e.semiMajor * e.semiMinor;
+          if (area < bestArea) { bestArea = area; bestAngle = a; }
+        }
+        attackBearingDeg = bestAngle;
+      }
+      // 1. Measure extents using the pure, un-offset geographic angle
+      let { semiMajor, semiMinor } = extentsAlongAnglePoints(allPoints, finalCenter, attackBearingDeg);
 
-      // 3. Determine if this cluster is coastal based purely on city count.
-      // Count how many cities in this cluster are coastal (within 12km)
-      let coastalCityCount = 0;
-      for (const item of cluster) {
-        const { dist: cityDist } = nearestCoastlineSegment(item.centroid);
-        if (cityDist <= CITY_COAST_THRESHOLD_KM) coastalCityCount++;
+      // 2. Lock orientation: Force semiMajor to always be the longest axis
+      if (semiMinor > semiMajor) {
+        const temp = semiMajor;
+        semiMajor = semiMinor;
+        semiMinor = temp;
+        attackBearingDeg = (attackBearingDeg + 90) % 360;
       }
 
-      // Trigger mirroring if there are at least 3 coastal cities
-      const isCoastal = coastalCityCount >= MIN_COASTAL_CITIES_FOR_MIRROR;
-      const { point: coastPoint } = nearestCoastlineSegment([latPivot, landCenter[1]]);
+      // 3. Add visual map offset ONLY for the drawing functions
+      const drawingAngleDeg = attackBearingDeg + ELLIPSE_ROTATION_OFFSET_DEG;
 
-      // 4. Generate virtual sea-mirror alerts using Point Reflection (if coastal)
-      // We shift the pivot longitude 0.015 degrees West (~1.5km) to move the mirrored image further West.
-      const reflectionCenter: [number, number] = isCoastal ? [latPivot, coastPoint[1] - 0.015] : landCenter;
-      const seaMirrors = isCoastal ? generateSeaMirrorAlerts(cluster, polygons, reflectionCenter) : [];
+      const ellipseRing = generateEllipseRing(finalCenter, semiMajor, semiMinor, drawingAngleDeg);
+      const hitAreaRing = generateEllipseRing(finalCenter, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, drawingAngleDeg);
+      // Prevent 90-degree flips: ensure semiMajor is always the longest axis
+      let finalSemiMajor = semiMajor;
+      let finalSemiMinor = semiMinor;
+      let finalAngleDeg = attackBearingDeg;
 
-      // 4. Combine real centroids with virtual sea points for PCA calculations
-      const allCentroids = [...landCentroids, ...seaMirrors.map(s => s.centroid)];
-      const center_ = reflectionCenter;
-      const angleDeg = pcaAngle(allCentroids);
+      if (semiMinor > semiMajor) {
+        finalSemiMajor = semiMinor;
+        finalSemiMinor = semiMajor;
+        finalAngleDeg = (attackBearingDeg + 90) % 360;
+      }
 
-      // 5. Build an augmented cluster that includes full sea mirror polygons for extent calculation
-      const augmentedCluster = [
-        ...cluster,
-        ...seaMirrors,
-      ];
+      const { source: launchSource } = estimateOrigin(landCentroid, attackBearingDeg, semiMajor, semiMinor);
+      const arrowLength = Math.max(barrageDepthKm * 0.6, 10);
 
-      // 6. Extents: use the augmented cluster (real + mirrored polygons) to compute semi-axes
-      const { semiMajor, semiMinor } = extentsAlongAngleExtrapolated(augmentedCluster, polygons, center_, angleDeg);
-      const ellipseRing = generateEllipseRing(center_, semiMajor, semiMinor, angleDeg);
-      const hitAreaRing = generateEllipseRing(center_, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, angleDeg);
-      const { bearingDeg: launchBearingDeg, distanceKm: launchDistanceKm, source: launchSource } = estimateOrigin(
-        center_, angleDeg, semiMajor, semiMinor
+      // Arrow points from land toward sea: use the coast-perpendicular direction.
+      // The coastline segment direction gives us the coast-parallel vector; rotate 90° toward the sea (west).
+      let arrowAngleDeg = attackBearingDeg;
+      if (finalMirrors.length > 0) {
+        const { segIdx } = nearestCoastlineSegment(landCentroid);
+        const cA = COASTLINE_WAYPOINTS[segIdx];
+        const cB = COASTLINE_WAYPOINTS[segIdx + 1];
+        // Coast-parallel vector (north, east)
+        const cpN = (cB[0] - cA[0]);
+        const cpE = (cB[1] - cA[1]) * Math.cos(toRad(cA[0]));
+        // Rotate 90° CCW to get coast-perpendicular pointing west (toward sea)
+        // perpendicular = (-cpE, cpN) in (north, east) → points west for a N→S coastline
+        const seaN = -cpE, seaE = cpN;
+        // Ensure it points west (seaE < 0 for Israel's west coast)
+        const sign = seaE < 0 ? 1 : -1;
+        // pcaAngle convention: atan2(north, east) - 90
+        arrowAngleDeg = toDeg(Math.atan2(sign * seaN, sign * seaE)) - 90;
+      }
+
+      const [hLat, hLng] = kmToLatLng(
+        arrowLength * Math.cos(toRad(arrowAngleDeg)),
+        arrowLength * Math.sin(toRad(arrowAngleDeg)),
+        finalCenter[0]
       );
 
       results.push({
         id: `ellipse_${cluster[0].status}_${cluster.map(c => c.cityName).join("_").slice(0, 30)}`,
-        center: center_,
+        center: finalCenter,
         ellipseRing,
         hitAreaRing,
-        majorAxisAngleDeg: angleDeg,
-        launchBearingDeg,
-        launchDistanceKm,
+        majorAxisAngleDeg: finalAngleDeg,
+        launchBearingDeg: attackBearingDeg,
+        launchDistanceKm: 100,
         launchSource,
-        semiMajorKm: semiMajor,
-        semiMinorKm: semiMinor,
+        semiMajorKm: finalSemiMajor,
+        semiMinorKm: finalSemiMinor,
         status: cluster[0].status,
-        mirroredPoints: seaMirrors.length > 0 ? seaMirrors.map(s => s.centroid) : undefined,
-        mirroredPolygons: seaMirrors.length > 0 ? seaMirrors.map(s => s.polygon) : undefined,
+        mirroredPoints: finalMirrors,
+        parabolaRing: [],
+        parabolaHeading: {
+          origin: finalCenter,
+          destination: [finalCenter[0] + hLat, finalCenter[1] + hLng] as [number, number],
+          angle: attackBearingDeg
+        },
+        landHull,
+        landOutlineSegments: isCoastalDeepBarrage ? landOutlineSegments : [],
       });
     }
 

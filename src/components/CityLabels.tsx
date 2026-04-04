@@ -147,19 +147,35 @@ export default function CityLabels({ polygons, theme, alerts, ellipses }: CityLa
     const accepted: { label: LabelPoint; isLarge: boolean; isAlerted: boolean; isEllipseHit: boolean }[] = [];
     const occupiedRects: { x1: number; y1: number; x2: number; y2: number }[] = [];
     const mapSize = map.getSize();
+    const isMobile = mapSize.x < 640;
+    const isHeavyBarrage = alertedCities.size > 8;
+
+    // Maximum labels to show to prevent screen covering
+    const MAX_LABELS = isMobile ? (isHeavyBarrage ? 25 : 35) : (isHeavyBarrage ? 60 : 80);
 
     for (const { label, isAlerted, isEllipseHit, effectiveTier } of sorted) {
+      if (accepted.length >= MAX_LABELS) break;
+      
+      // During heavy barrages, hide unimportant non-alerted cities
+      if (isHeavyBarrage && !isAlerted && label.tier > 1) continue;
+      
       if (effectiveTier > maxTier) continue;
+      
       const point = map.latLngToContainerPoint(label.pos);
       if (point.x < -50 || point.y < -50 || point.x > mapSize.x + 50 || point.y > mapSize.y + 50) continue;
 
-      const isLarge = mapState.zoom < 10 && label.tier <= 1;
-      const fontSize = isLarge ? 14 : 12;
-      const width = label.name.length * (fontSize * 0.8) + 12;
-      const height = fontSize + 10;
+      const isLarge = !isMobile && mapState.zoom < 10 && label.tier <= 1;
+      const fontSize = isMobile ? (isAlerted ? 11 : 10) : (isLarge ? 14 : 12);
+      
+      const width = label.name.length * (fontSize * 0.7) + (isMobile ? 8 : 12);
+      const height = fontSize + (isMobile ? 6 : 10);
       const rect = { x1: point.x - width / 2, y1: point.y - height / 2, x2: point.x + width / 2, y2: point.y + height / 2 };
 
-      const padding = mapState.zoom >= 11 ? 4 : 18;
+      // Dynamic padding: more space on mobile or during heavy alerts
+      let padding = mapState.zoom >= 11 ? 4 : 18;
+      if (isMobile) padding += 12;
+      if (isHeavyBarrage && isMobile) padding += 10; // Even more space during chaos
+      
       if (!occupiedRects.some(r => rect.x1 - padding < r.x2 && rect.x2 + padding > r.x1 && rect.y1 - padding < r.y2 && rect.y2 + padding > r.y1)) {
         accepted.push({ label, isLarge, isAlerted, isEllipseHit });
         occupiedRects.push(rect);
