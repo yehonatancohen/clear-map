@@ -252,12 +252,10 @@ const COASTLINE_WAYPOINTS: [number, number][] = [
   [31.27, 34.22], // Rafah
 ];
 
-/** How close the cluster center must be to the coastline to trigger sea mirroring (km). */
-const COAST_PROXIMITY_KM = 18;
-/** How close an individual city must be to be considered "strictly coastal" (km). */
-const CITY_COAST_THRESHOLD_KM = 5;
-/** Minimum number of strictly coastal cities in a cluster to trigger mirroring. */
-const MIN_COASTAL_CITIES_FOR_MIRROR = 2;
+/** How close an individual city must be to be considered "coastal" (km). */
+const CITY_COAST_THRESHOLD_KM = 6;
+/** Minimum number of coastal cities in a cluster to trigger mirroring. */
+const MIN_COASTAL_CITIES_FOR_MIRROR = 3;
 
 /**
  * Find the nearest segment index, distance, and the actual point on the coastline polyline to a given point.
@@ -484,18 +482,17 @@ export function useImpactEllipses(
       const landCentroids = cluster.map(item => item.centroid);
       const landCenter = centroid(landCentroids);
 
-      // 3. Determine if this cluster is coastal based on both proximity AND city count.
-      const { dist: clusterDistToCoast, point: coastPoint } = nearestCoastlineSegment([latPivot, landCenter[1]]);
-
-      // Count how many cities in this cluster are "strictly coastal"
+      // 3. Determine if this cluster is coastal based purely on city count.
+      // Count how many cities in this cluster are coastal (within 12km)
       let coastalCityCount = 0;
       for (const item of cluster) {
         const { dist: cityDist } = nearestCoastlineSegment(item.centroid);
         if (cityDist <= CITY_COAST_THRESHOLD_KM) coastalCityCount++;
       }
 
-      // Trigger mirroring if the cluster is generally near the coast AND has enough coastal cities
-      const isCoastal = clusterDistToCoast <= COAST_PROXIMITY_KM && coastalCityCount >= MIN_COASTAL_CITIES_FOR_MIRROR;
+      // Trigger mirroring if there are at least 3 coastal cities
+      const isCoastal = coastalCityCount >= MIN_COASTAL_CITIES_FOR_MIRROR;
+      const { point: coastPoint } = nearestCoastlineSegment([latPivot, landCenter[1]]);
 
       // 4. Generate virtual sea-mirror alerts using Point Reflection (if coastal)
       // We shift the pivot longitude 0.015 degrees West (~1.5km) to move the mirrored image further West.
