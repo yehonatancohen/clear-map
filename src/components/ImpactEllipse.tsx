@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import type { ImpactEllipse } from "@/hooks/useImpactEllipses";
 
 const STATUS_COLORS: Record<string, { stroke: string; fill: string }> = {
-  alert:     { stroke: "#FF2A2A", fill: "#FF2A2A" },
+  alert: { stroke: "#FF2A2A", fill: "#FF2A2A" },
   pre_alert: { stroke: "#FF6A00", fill: "#FF6A00" },
   terrorist: { stroke: "#FF0055", fill: "#FF0055" },
 };
@@ -150,7 +150,7 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
 
   return (
     <>
-       {ellipses.map((e) => {
+      {ellipses.map((e) => {
         const colors = STATUS_COLORS[e.status] || STATUS_COLORS.alert;
 
         return (

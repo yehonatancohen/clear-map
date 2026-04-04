@@ -24,6 +24,10 @@ export interface ImpactEllipse {
   semiMinorKm: number;
   /** Alert status color key */
   status: string;
+  /** Optional mirrored points in the sea */
+  mirroredPoints?: [number, number][];
+  /** Optional mirrored polygons in the sea */
+  mirroredPolygons?: [number, number][][];
 }
 
 const MIN_CITIES_FOR_ELLIPSE = 3;
@@ -167,7 +171,7 @@ function pcaAngle(cityCentroids: [number, number][]): number {
  * of the two becomes the final semi-axis (symmetric ellipse).
  */
 function extentsAlongAngleExtrapolated(
-  cluster: { cityName: string; centroid: [number, number] }[],
+  cluster: { cityName: string; centroid: [number, number]; polygon?: [number, number][] }[],
   polygons: PolygonLookup,
   center_: [number, number],
   angleDeg: number,
@@ -180,7 +184,7 @@ function extentsAlongAngleExtrapolated(
   let posMinor = 0, negMinor = 0;
 
   for (const item of cluster) {
-    const poly = polygons[item.cityName];
+    const poly = item.polygon || polygons[item.cityName]?.polygon;
 
     // Centroid projection onto axes relative to cluster center
     const cdy = (item.centroid[0] - center_[0]) * 111.32;
@@ -191,12 +195,12 @@ function extentsAlongAngleExtrapolated(
     let radiusMajor: number;
     let radiusMinor: number;
 
-    if (poly?.polygon?.length) {
-      // Real city: compute extent from polygon vertices
+    if (poly?.length) {
+      // Real city or mirrored polygon: compute extent from polygon vertices
       let cityPosMajor = 0, cityNegMajor = 0;
       let cityPosMinor = 0, cityNegMinor = 0;
 
-      for (const [lat, lng] of poly.polygon) {
+      for (const [lat, lng] of poly) {
         const dy = (lat - item.centroid[0]) * 111.32;
         const dx = (lng - item.centroid[1]) * 111.32 * Math.cos(toRad(item.centroid[0]));
         const pMajor = -dx * sinR + dy * cosR;
@@ -213,7 +217,7 @@ function extentsAlongAngleExtrapolated(
       radiusMajor = Math.max(cityPosMajor, cityNegMajor);
       radiusMinor = Math.max(cityPosMinor, cityNegMinor);
     } else {
-      // Virtual sea-mirror point: use a small default radius (just the centroid matters
+      // Virtual point: use a small default radius (just the centroid matters
       // for pushing the ellipse extent seaward)
       radiusMajor = 1.0;
       radiusMinor = 1.0;
@@ -227,8 +231,8 @@ function extentsAlongAngleExtrapolated(
   }
 
   return {
-    semiMajor: Math.max(Math.max(posMajor, negMajor) * 0.98, 1.0),
-    semiMinor: Math.max(Math.max(posMinor, negMinor) * 0.98, 0.6),
+    semiMajor: Math.max(Math.max(posMajor, negMajor) * 1, 1.0),
+    semiMinor: Math.max(Math.max(posMinor, negMinor) * 1, 1),
   };
 }
 
@@ -248,16 +252,21 @@ const COASTLINE_WAYPOINTS: [number, number][] = [
   [31.27, 34.22], // Rafah
 ];
 
-/** How close the cluster centroid must be to the coastline to trigger sea mirroring (km). */
-const COAST_PROXIMITY_KM = 15;
+/** How close the cluster center must be to the coastline to trigger sea mirroring (km). */
+const COAST_PROXIMITY_KM = 18;
+/** How close an individual city must be to be considered "strictly coastal" (km). */
+const CITY_COAST_THRESHOLD_KM = 5;
+/** Minimum number of strictly coastal cities in a cluster to trigger mirroring. */
+const MIN_COASTAL_CITIES_FOR_MIRROR = 2;
 
 /**
- * Find the nearest segment index and distance on the coastline polyline to a given point.
+ * Find the nearest segment index, distance, and the actual point on the coastline polyline to a given point.
  */
-function nearestCoastlineSegment(p: [number, number]): { dist: number; segIdx: number } {
+function nearestCoastlineSegment(p: [number, number]): { dist: number; segIdx: number; point: [number, number] } {
   const cosLat = Math.cos(toRad(p[0]));
   let bestDist = Infinity;
   let bestSeg = 0;
+  let bestPoint: [number, number] = p;
 
   for (let i = 0; i < COASTLINE_WAYPOINTS.length - 1; i++) {
     const a = COASTLINE_WAYPOINTS[i];
@@ -271,72 +280,50 @@ function nearestCoastlineSegment(p: [number, number]): { dist: number; segIdx: n
     const lenSq = dx * dx + dy * dy;
     const t = lenSq > 1e-12 ? Math.max(0, Math.min(1, (px * dx + py * dy) / lenSq)) : 0;
 
-    const nearX = px - t * dx;
-    const nearY = py - t * dy;
-    const dist = Math.sqrt(nearX * nearX + nearY * nearY);
+    const nearX = t * dx;
+    const nearY = t * dy;
+    const dist = Math.sqrt((px - nearX) ** 2 + (py - nearY) ** 2);
 
     if (dist < bestDist) {
       bestDist = dist;
       bestSeg = i;
+      bestPoint = [a[0] + nearY / 111.32, a[1] + nearX / (111.32 * cosLat)];
     }
   }
 
-  return { dist: bestDist, segIdx: bestSeg };
-}
-
-/** Controls how far the reflected point is placed on the sea side (1.0 = full mirror). */
-const SEA_REFLECTION_FACTOR = 0.6;
-
-/**
- * Reflect a point across the infinite line defined by the i-th coastline segment,
- * scaled by SEA_REFLECTION_FACTOR. The reflected point lands at factor × the
- * perpendicular distance from the coast, on the sea side.
- */
-function reflectAcrossSegment(p: [number, number], segIdx: number): [number, number] {
-  const a = COASTLINE_WAYPOINTS[segIdx];
-  const b = COASTLINE_WAYPOINTS[segIdx + 1];
-
-  const refLat = (p[0] + a[0] + b[0]) / 3;
-  const cosLat = Math.cos(toRad(refLat));
-
-  const px = (p[1] - a[1]) * 111.32 * cosLat;
-  const py = (p[0] - a[0]) * 111.32;
-  const dx = (b[1] - a[1]) * 111.32 * cosLat;
-  const dy = (b[0] - a[0]) * 111.32;
-
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq < 1e-12) return p;
-
-  // foot = projection of p onto the line (in km relative to a)
-  const t = (px * dx + py * dy) / lenSq;
-  const footX = t * dx;
-  const footY = t * dy;
-
-  // Full mirror: rx = 2*foot - p. Scaled: foot + factor*(foot - p)
-  const rx = footX + SEA_REFLECTION_FACTOR * (footX - px);
-  const ry = footY + SEA_REFLECTION_FACTOR * (footY - py);
-
-  return [a[0] + ry / 111.32, a[1] + rx / (111.32 * cosLat)];
+  return { dist: bestDist, segIdx: bestSeg, point: bestPoint };
 }
 
 /**
- * Generate virtual "sea mirror" points for coastal clusters.
- *
- * If the cluster centroid is within COAST_PROXIMITY_KM of the Mediterranean coastline,
- * each city centroid is reflected across its nearest coastline segment. The reflected
- * points are added alongside the real ones so the ellipse naturally extends over the sea.
+ * Generate virtual "sea mirror" alerts using Point Reflection.
+ * 
+ * Each land alert vertex (x, y) is reflected through the cluster reflectionCenter (xc, yc)
+ * using the formula: x' = 2*xc - x, y' = 2*yc - y.
+ * This creates a point-symmetric distribution that results in a proper convex ellipse.
  */
-function generateSeaMirrorPoints(
-  cluster: { cityName: string; centroid: [number, number]; status: string; radius: number }[],
-  _polygons: PolygonLookup,
-): { centroid: [number, number]; radius: number }[] {
-  const clusterCenter = centroid(cluster.map(c => c.centroid));
-  const { dist: distToCoast } = nearestCoastlineSegment(clusterCenter);
-  if (distToCoast > COAST_PROXIMITY_KM) return [];
+function generateSeaMirrorAlerts(
+  cluster: { cityName: string; centroid: [number, number]; radius: number }[],
+  polygons: PolygonLookup,
+  reflectionCenter: [number, number]
+): { cityName: string; centroid: [number, number]; polygon: [number, number][]; radius: number }[] {
+  return cluster.map((item, idx) => {
+    const poly = polygons[item.cityName]?.polygon || [];
 
-  return cluster.map(item => {
-    const { segIdx } = nearestCoastlineSegment(item.centroid);
-    return { centroid: reflectAcrossSegment(item.centroid, segIdx), radius: item.radius };
+    const mirroredCentroid: [number, number] = [
+      2 * reflectionCenter[0] - item.centroid[0],
+      2 * reflectionCenter[1] - item.centroid[1],
+    ];
+    const mirroredPolygon = poly.map(([lat, lng]) => [
+      2 * reflectionCenter[0] - lat,
+      2 * reflectionCenter[1] - lng,
+    ] as [number, number]);
+
+    return {
+      cityName: `__mirrored_${idx}_${item.cityName}`,
+      centroid: mirroredCentroid,
+      polygon: mirroredPolygon,
+      radius: item.radius,
+    };
   });
 }
 
@@ -380,15 +367,15 @@ function estimateOrigin(center: [number, number], majorAxisAngleDeg: number, sem
   let bearingDeg = bearing1;
 
   if (isLebanonLat) {
-      // For northern clusters, pick the vector that points most North (closest to 0 or 360)
-      const diff1 = Math.min(Math.abs(bearing1), Math.abs(bearing1 - 360));
-      const diff2 = Math.min(Math.abs(bearing2), Math.abs(bearing2 - 360));
-      bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
+    // For northern clusters, pick the vector that points most North (closest to 0 or 360)
+    const diff1 = Math.min(Math.abs(bearing1), Math.abs(bearing1 - 360));
+    const diff2 = Math.min(Math.abs(bearing2), Math.abs(bearing2 - 360));
+    bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
   } else if (isSouthOfRishon) {
-      // For southern clusters, pick the vector that points most South (closest to 180)
-      const diff1 = Math.abs(bearing1 - 180);
-      const diff2 = Math.abs(bearing2 - 180);
-      bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
+    // For southern clusters, pick the vector that points most South (closest to 180)
+    const diff1 = Math.abs(bearing1 - 180);
+    const diff2 = Math.abs(bearing2 - 180);
+    bearingDeg = diff1 <= diff2 ? bearing1 : bearing2;
   } else if (isCoastal) {
     const diff1 = Math.abs(((bearing1 - 270 + 540) % 360) - 180);
     const diff2 = Math.abs(((bearing2 - 270 + 540) % 360) - 180);
@@ -480,25 +467,53 @@ export function useImpactEllipses(
     for (const cluster of clusters) {
       if (cluster.length < MIN_CITIES_FOR_ELLIPSE) continue;
 
-      // Generate virtual sea-mirror points for coastal cities
-      const seaMirrors = generateSeaMirrorPoints(cluster, polygons);
+      // 1. Calculate the latitude span of the land cluster
+      let minLat = 90, maxLat = -90;
+      for (const item of cluster) {
+        const poly = polygons[item.cityName]?.polygon || [];
+        for (const [lat] of poly) {
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+        }
+      }
 
-      // Combine real centroids with virtual sea points for center & PCA calculations
-      const realCentroids = cluster.map(item => item.centroid);
-      const allCentroids = [...realCentroids, ...seaMirrors.map(s => s.centroid)];
+      // 2. Determine a South-shifted pivot latitude.
+      // Midpoint (0.5) would align the bottom of sea with the bottom of land.
+      // 0.46 balances the vertical alignment to keep the top from being "too high".
+      const latPivot = minLat + (maxLat - minLat) * 0.46;
+      const landCentroids = cluster.map(item => item.centroid);
+      const landCenter = centroid(landCentroids);
 
-      // Center = mean of all centroids (real + sea mirrors)
-      const center_ = centroid(allCentroids);
-      // Angle = PCA of all centroids (sea mirrors make the PCA naturally extend E-W for coastal clusters)
+      // 3. Determine if this cluster is coastal based on both proximity AND city count.
+      const { dist: clusterDistToCoast, point: coastPoint } = nearestCoastlineSegment([latPivot, landCenter[1]]);
+
+      // Count how many cities in this cluster are "strictly coastal"
+      let coastalCityCount = 0;
+      for (const item of cluster) {
+        const { dist: cityDist } = nearestCoastlineSegment(item.centroid);
+        if (cityDist <= CITY_COAST_THRESHOLD_KM) coastalCityCount++;
+      }
+
+      // Trigger mirroring if the cluster is generally near the coast AND has enough coastal cities
+      const isCoastal = clusterDistToCoast <= COAST_PROXIMITY_KM && coastalCityCount >= MIN_COASTAL_CITIES_FOR_MIRROR;
+
+      // 4. Generate virtual sea-mirror alerts using Point Reflection (if coastal)
+      // We shift the pivot longitude 0.015 degrees West (~1.5km) to move the mirrored image further West.
+      const reflectionCenter: [number, number] = isCoastal ? [latPivot, coastPoint[1] - 0.015] : landCenter;
+      const seaMirrors = isCoastal ? generateSeaMirrorAlerts(cluster, polygons, reflectionCenter) : [];
+
+      // 4. Combine real centroids with virtual sea points for PCA calculations
+      const allCentroids = [...landCentroids, ...seaMirrors.map(s => s.centroid)];
+      const center_ = reflectionCenter;
       const angleDeg = pcaAngle(allCentroids);
 
-      // Build an augmented cluster that includes sea mirror entries for extent calculation
-      const augmentedCluster: { cityName: string; centroid: [number, number] }[] = [
+      // 5. Build an augmented cluster that includes full sea mirror polygons for extent calculation
+      const augmentedCluster = [
         ...cluster,
-        ...seaMirrors.map((s, i) => ({ cityName: `__sea_mirror_${i}`, centroid: s.centroid })),
+        ...seaMirrors,
       ];
 
-      // Extents: use the augmented cluster so sea mirrors push the ellipse over the water
+      // 6. Extents: use the augmented cluster (real + mirrored polygons) to compute semi-axes
       const { semiMajor, semiMinor } = extentsAlongAngleExtrapolated(augmentedCluster, polygons, center_, angleDeg);
       const ellipseRing = generateEllipseRing(center_, semiMajor, semiMinor, angleDeg);
       const hitAreaRing = generateEllipseRing(center_, semiMajor * HIT_AREA_SCALE, semiMinor * HIT_AREA_SCALE, angleDeg);
@@ -518,6 +533,8 @@ export function useImpactEllipses(
         semiMajorKm: semiMajor,
         semiMinorKm: semiMinor,
         status: cluster[0].status,
+        mirroredPoints: seaMirrors.length > 0 ? seaMirrors.map(s => s.centroid) : undefined,
+        mirroredPolygons: seaMirrors.length > 0 ? seaMirrors.map(s => s.polygon) : undefined,
       });
     }
 
