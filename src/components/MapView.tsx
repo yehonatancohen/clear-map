@@ -30,13 +30,9 @@ const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
 const THEMES = {
   dark: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-  light: "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+  light: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw",
 };
 
-const LABELS = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png",
-  light: "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
-};
 
 function ZoomListener() {
   return null;
@@ -487,7 +483,14 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           </>
         )}
 
-        <CityLabels polygons={polygons} theme={effectiveTheme} alerts={mode === "live" ? alerts : undefined} ellipses={mode === "live" ? impactEllipses : undefined} />
+        {effectiveTheme === "dark" && (
+          <CityLabels 
+            polygons={polygons} 
+            theme={effectiveTheme} 
+            alerts={mode === "live" ? alerts : undefined} 
+            ellipses={mode === "live" ? impactEllipses : undefined} 
+          />
+        )}
       </MapContainer>
       {isBroadcast && (
         <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none select-none">
