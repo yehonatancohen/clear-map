@@ -45,7 +45,7 @@ function hasInvisibleAncestor(el: Element, stopEl: Element, threshold = 0.05): b
   return false;
 }
 
-async function captureMapCenteredOnAlerts(
+async function captureCurrentMapView(
   alerts: ActiveAlert[],
   polygonsData: Record<string, { polygon: [number, number][] }> | null,
   theme: "light" | "dark" = "dark",
@@ -56,26 +56,6 @@ async function captureMapCenteredOnAlerts(
 
   const map = getMapInstance();
   const L = await import("leaflet");
-
-  const savedCenter = map ? map.getCenter() : null;
-  const savedZoom = map ? map.getZoom() : null;
-
-  // Fit to alert centroids so alerts are always in frame
-  if (map && alerts.length > 0 && polygonsData) {
-    const alertBounds = L.latLngBounds([]);
-    for (const a of alerts) {
-      const poly = polygonsData[a.city_name_he];
-      if (poly?.polygon?.length) {
-        let latSum = 0, lngSum = 0;
-        for (const [lat, lng] of poly.polygon) { latSum += lat; lngSum += lng; }
-        alertBounds.extend(L.latLng(latSum / poly.polygon.length, lngSum / poly.polygon.length));
-      }
-    }
-    if (alertBounds.isValid()) {
-      map.fitBounds(alertBounds, { padding: [80, 80], maxZoom: 12, animate: false });
-      await new Promise(r => setTimeout(r, 350));
-    }
-  }
 
   const rect = container.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 2;
@@ -192,16 +172,12 @@ async function captureMapCenteredOnAlerts(
     }
   }
 
-  if (map && savedCenter && savedZoom !== null) {
-    map.setView(savedCenter, savedZoom, { animate: false });
-  }
-
   return canvas;
 }
 
 export async function generateShareImage(alerts: ActiveAlert[], theme: "light" | "dark" = "dark"): Promise<Blob> {
   const polygonsData = await getPolygons();
-  const mapCanvas = await captureMapCenteredOnAlerts(alerts, polygonsData, theme);
+  const mapCanvas = await captureCurrentMapView(alerts, polygonsData, theme);
 
   const SIZE = 1080;
   const canvas = document.createElement("canvas");
@@ -285,15 +261,48 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
     }
   }
 
-  // URL watermark — bottom left
-  ctx.direction = "ltr";
-  ctx.textAlign = "left";
-  ctx.font = "bold 28px Rubik, sans-serif";
-  ctx.shadowColor = "rgba(0,0,0,0.6)";
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.45)";
-  ctx.fillText("clearmap.co.il", 30, SIZE - 28);
-  ctx.shadowBlur = 0;
+  // URL watermark badge — bottom left, styled like a pill button
+  {
+    const urlText = "clearmap.co.il";
+    ctx.font = "bold 26px Rubik, sans-serif";
+    const textW = ctx.measureText(urlText).width;
+    const padX = 20, padY = 12;
+    const badgeW = textW + padX * 2;
+    const badgeH = 26 + padY * 2;
+    const badgeX = 28;
+    const badgeY = SIZE - badgeH - 28;
+    const r = badgeH / 2;
+
+    // Pill background
+    ctx.beginPath();
+    ctx.moveTo(badgeX + r, badgeY);
+    ctx.lineTo(badgeX + badgeW - r, badgeY);
+    ctx.arcTo(badgeX + badgeW, badgeY, badgeX + badgeW, badgeY + badgeH, r);
+    ctx.lineTo(badgeX + badgeW, badgeY + badgeH - r);
+    ctx.arcTo(badgeX + badgeW, badgeY + badgeH, badgeX + badgeW - r, badgeY + badgeH, r);
+    ctx.lineTo(badgeX + r, badgeY + badgeH);
+    ctx.arcTo(badgeX, badgeY + badgeH, badgeX, badgeY + badgeH - r, r);
+    ctx.lineTo(badgeX, badgeY + r);
+    ctx.arcTo(badgeX, badgeY, badgeX + r, badgeY, r);
+    ctx.closePath();
+
+    ctx.fillStyle = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
+    ctx.fill();
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.20)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Text
+    ctx.direction = "ltr";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 26px Rubik, sans-serif";
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = isDark ? "rgba(255,255,255,0.85)" : "rgba(10,10,20,0.75)";
+    ctx.fillText(urlText, badgeX + padX, badgeY + badgeH / 2);
+    ctx.shadowBlur = 0;
+  }
 
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))), "image/png", 0.9);
