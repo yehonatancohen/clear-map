@@ -471,7 +471,11 @@ export function useImpactEllipses(
       let allPoints: [number, number][] = [...landHull];
       let landOutlineSegments: [number, number][][] = [];
 
-      if (isCoastalDeepBarrage) {
+      const clusterIsTest = cluster.some(item =>
+        relevant.find(a => a.city_name_he === item.cityName)?.is_test
+      );
+
+      if (isCoastalDeepBarrage && clusterIsTest) {
         // Pivot on the coastline at the land centroid's latitude — mirror
         // has the same vertical center and touches the coast with no extra shifts.
         const coastPivot: [number, number] = [landCentroid[0], coastlineLngAtLat(landCentroid[0])];
