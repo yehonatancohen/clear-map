@@ -102,6 +102,21 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
               );
             })}
 
+            {/* 4. Mirrored coastline polygon (sea-side reflection) */}
+            {e.mirroredPoints && e.mirroredPoints.length >= 3 && (
+              <Polygon
+                positions={e.mirroredPoints}
+                pathOptions={{
+                  color: colors.stroke,
+                  weight: 1.5,
+                  dashArray: "5, 5",
+                  fillColor: colors.fill,
+                  fillOpacity: 0.06,
+                  opacity: 0.5,
+                }}
+              />
+            )}
+
           </span>
         );
       })}

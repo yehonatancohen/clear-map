@@ -246,6 +246,23 @@ export const COASTLINE_WAYPOINTS: [number, number][] = [
   [31.27, 34.22], // Rafah
 ];
 
+/** Interpolate coastline longitude at a given latitude. */
+function coastlineLngAtLat(lat: number): number {
+  for (let i = 0; i < COASTLINE_WAYPOINTS.length - 1; i++) {
+    const [lat1, lng1] = COASTLINE_WAYPOINTS[i];
+    const [lat2, lng2] = COASTLINE_WAYPOINTS[i + 1];
+    const minLat = Math.min(lat1, lat2);
+    const maxLat = Math.max(lat1, lat2);
+    if (lat >= minLat && lat <= maxLat) {
+      const t = (lat - lat1) / (lat2 - lat1);
+      return lng1 + t * (lng2 - lng1);
+    }
+  }
+  // Clamp to nearest endpoint
+  if (lat >= COASTLINE_WAYPOINTS[0][0]) return COASTLINE_WAYPOINTS[0][1];
+  return COASTLINE_WAYPOINTS[COASTLINE_WAYPOINTS.length - 1][1];
+}
+
 /**
  * Find the nearest segment index, distance, and the actual point on the coastline polyline to a given point.
  */
@@ -455,15 +472,20 @@ export function useImpactEllipses(
       let landOutlineSegments: [number, number][][] = [];
 
       if (isCoastalDeepBarrage) {
-        const coastalHullPoints = landHull.filter(p => nearestCoastlineSegment(p).dist < 8);
-        const coastPivot = coastalHullPoints.length > 0
-          ? centroid(coastalHullPoints)
-          : nearestCoastlineSegment(landCentroid).point;
+        // Pivot on the coastline at the land centroid's latitude — mirror
+        // has the same vertical center and touches the coast with no extra shifts.
+        const coastPivot: [number, number] = [landCentroid[0], coastlineLngAtLat(landCentroid[0])];
         const seaMirrors = generateSeaMirrorPoints(landHull, coastPivot);
 
-        finalMirrors = seaMirrors;
-        finalCenter = coastPivot;
-        allPoints = [...landHull, ...seaMirrors];
+        // Adjust lat so mirrored polygon matches land hull's vertical range
+        const landMidLat = (Math.min(...landHull.map(p => p[0])) + Math.max(...landHull.map(p => p[0]))) / 2;
+        const mirMidLat = (Math.min(...seaMirrors.map(p => p[0])) + Math.max(...seaMirrors.map(p => p[0]))) / 2;
+        const latShift = landMidLat - mirMidLat;
+        const alignedMirrors = seaMirrors.map(([lat, lng]) => [lat + latShift, lng] as [number, number]);
+
+        finalMirrors = alignedMirrors;
+        allPoints = [...landHull, ...alignedMirrors];
+        finalCenter = centroid(allPoints);
         attackBearingDeg = pcaAnglePoints(allPoints);
 
         const hullCentroid = centroid(landHull);
