@@ -12,6 +12,8 @@ const STATUS_COLORS: Record<string, { stroke: string; fill: string }> = {
 const INNER_ELLIPSE_COLOR = "#FFD700"; // yellow
 const INNER_GRADIENT_STEPS = 7;
 
+
+
 function scaleRingAroundCenter(
   ring: [number, number][],
   center: [number, number],
@@ -101,7 +103,6 @@ export default function ImpactEllipseLayer({ ellipses }: { ellipses: ImpactEllip
                 />
               );
             })}
-
 
 
           </span>

@@ -51,10 +51,22 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
   },
 };
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+function formatRelativeTime(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return `לפני ${diff} שניות`;
+  const mins = Math.floor(diff / 60);
+  if (mins < 60) return `לפני ${mins} דקות`;
+  const hours = Math.floor(mins / 60);
+  return `לפני ${hours} שעות`;
 }
+
+const STATUS_PRIORITY: Record<string, number> = {
+  alert: 0,
+  terrorist: 1,
+  uav: 2,
+  pre_alert: 3,
+  after_alert: 4,
+};
 
 function AlertItem({ alert }: { alert: ActiveAlert }) {
   const config = STATUS_CONFIG[alert.status] || STATUS_CONFIG.alert;
@@ -72,7 +84,7 @@ function AlertItem({ alert }: { alert: ActiveAlert }) {
           </span>
         </div>
         <span className="text-[10px] text-white/50 font-medium tabular-nums">
-          {formatTime(alert.timestamp)}
+          {formatRelativeTime(alert.timestamp)}
         </span>
       </div>
       <p className="text-[14px] text-white font-bold leading-snug">
@@ -92,6 +104,11 @@ export default function IntelPanel({
   onModeChange,
 }: IntelPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const [showAbout, setShowAbout] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -265,7 +282,12 @@ export default function IntelPanel({
   );
 
   const hasAlerts = alerts.length > 0;
-  const sorted = [...alerts].sort((a, b) => b.timestamp - a.timestamp);
+  const sorted = [...alerts].sort((a, b) => {
+    const pa = STATUS_PRIORITY[a.status] ?? 9;
+    const pb = STATUS_PRIORITY[b.status] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return b.timestamp - a.timestamp;
+  });
 
   const handleShare = async () => {
     setIsCapturing(true);

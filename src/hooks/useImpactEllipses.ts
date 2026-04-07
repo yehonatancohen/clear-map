@@ -220,6 +220,29 @@ function extentsAlongAnglePoints(
   };
 }
 
+function simplifyByAngle(pts: [number, number][], minAngleDeg: number): [number, number][] {
+  let result = [...pts];
+  let changed = true;
+  while (changed && result.length > 3) {
+    changed = false;
+    const next: [number, number][] = [];
+    for (let i = 0; i < result.length; i++) {
+      const prev = result[(i - 1 + result.length) % result.length];
+      const curr = result[i];
+      const nx = result[(i + 1) % result.length];
+      const cosLat = Math.cos((curr[0] * Math.PI) / 180);
+      const ax = (curr[1] - prev[1]) * 111.32 * cosLat, ay = (curr[0] - prev[0]) * 111.32;
+      const bx = (nx[1] - curr[1]) * 111.32 * cosLat, by = (nx[0] - curr[0]) * 111.32;
+      const lenA = Math.sqrt(ax * ax + ay * ay), lenB = Math.sqrt(bx * bx + by * by);
+      if (lenA < 0.001 || lenB < 0.001) { next.push(curr); continue; }
+      const angleDeg = Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (lenA * lenB)))) * 180 / Math.PI;
+      if (angleDeg >= minAngleDeg) next.push(curr); else changed = true;
+    }
+    if (next.length >= 3) result = next; else break;
+  }
+  return result;
+}
+
 function generateSeaMirrorPoints(
   points: [number, number][],
   center: [number, number]
@@ -472,19 +495,39 @@ export function useImpactEllipses(
       let landOutlineSegments: [number, number][][] = [];
 
       if (isCoastalDeepBarrage) {
-        // Pivot on the coastline at the land centroid's latitude — mirror
-        // has the same vertical center and touches the coast with no extra shifts.
         const coastPivot: [number, number] = [landCentroid[0], coastlineLngAtLat(landCentroid[0])];
         const seaMirrors = generateSeaMirrorPoints(landHull, coastPivot);
 
-        // Adjust lat so mirrored polygon matches land hull's vertical range
-        const landMidLat = (Math.min(...landHull.map(p => p[0])) + Math.max(...landHull.map(p => p[0]))) / 2;
-        const mirMidLat = (Math.min(...seaMirrors.map(p => p[0])) + Math.max(...seaMirrors.map(p => p[0]))) / 2;
-        const latShift = landMidLat - mirMidLat;
-        const alignedMirrors = seaMirrors.map(([lat, lng]) => [lat + latShift, lng] as [number, number]);
+        // Find edge most parallel to coastline on specified side (west for land, east for mirror)
+        const coastlineEdge = (hull: [number, number][], westSide: boolean): [[number, number], [number, number]] => {
+          const simplified = simplifyByAngle(hull, 20);
+          const cFirst = COASTLINE_WAYPOINTS[0], cLast = COASTLINE_WAYPOINTS[COASTLINE_WAYPOINTS.length - 1];
+          const cosLat = Math.cos((cFirst[0] * Math.PI) / 180);
+          const cdx = (cLast[1] - cFirst[1]) * cosLat, cdy = cLast[0] - cFirst[0];
+          const cLen = Math.sqrt(cdx * cdx + cdy * cdy);
+          const centLng = simplified.reduce((s, p) => s + p[1], 0) / simplified.length;
+          let bestI = 0, bestParallel = -Infinity;
+          for (let i = 0; i < simplified.length; i++) {
+            const next = simplified[(i + 1) % simplified.length];
+            const midLng = (simplified[i][1] + next[1]) / 2;
+            if (westSide ? midLng > centLng : midLng < centLng) continue;
+            const edx = (next[1] - simplified[i][1]) * cosLat, edy = next[0] - simplified[i][0];
+            const eLen = Math.sqrt(edx * edx + edy * edy);
+            if (eLen < 0.001) continue;
+            const parallel = Math.abs((cdx * edx + cdy * edy) / (cLen * eLen));
+            if (parallel > bestParallel) { bestParallel = parallel; bestI = i; }
+          }
+          const a = simplified[bestI], b = simplified[(bestI + 1) % simplified.length];
+          return a[0] >= b[0] ? [a, b] : [b, a];
+        };
 
-        finalMirrors = alignedMirrors;
-        allPoints = [...landHull, ...alignedMirrors];
+        const [landP1] = coastlineEdge(landHull, true);
+        const [mirrorP1] = coastlineEdge(seaMirrors, false);
+        const latShift = landP1[0] - mirrorP1[0];
+        const lngShift = landP1[1] - mirrorP1[1];
+        finalMirrors = seaMirrors.map(([lat, lng]) => [lat + latShift, lng + lngShift] as [number, number]);
+
+        allPoints = [...landHull, ...finalMirrors];
         finalCenter = centroid(allPoints);
         attackBearingDeg = pcaAnglePoints(allPoints);
 

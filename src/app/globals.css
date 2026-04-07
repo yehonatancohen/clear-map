@@ -273,6 +273,20 @@ body {
   animation: timeline-polygon-fade 0.3s ease-out;
 }
 
+/* ─── Respect prefers-reduced-motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  .leaflet-interactive.alert-polygon-double,
+  .leaflet-interactive.alert-polygon-new,
+  .status-dot-pulse,
+  .about-shimmer,
+  .toast-enter,
+  .alert-item-enter,
+  .timeline-bar-enter,
+  .leaflet-interactive.timeline-polygon-appear {
+    animation: none !important;
+  }
+}
+
 /* ── City Labels ── */
 .city-label-container {
   border: none !important;
