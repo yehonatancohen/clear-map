@@ -36,6 +36,12 @@ export interface ImpactEllipse {
     destination: [number, number];
     angle: number;
   };
+  /** Individual city polygons for alerted cities in the cluster */
+  landCityPolygons?: [number, number][][];
+  /** Center of the land coastline edge (for debug) */
+  landCoastEdgeCenter?: [number, number];
+  /** Center of the mirror coastline edge before shift (for debug) */
+  mirrorCoastEdgeCenter?: [number, number];
   /** Convex hull of the original land alert polygons */
   landHull?: [number, number][];
   /** Filtered segments of the land hull that are NOT along the coastline */
@@ -491,12 +497,91 @@ export function useImpactEllipses(
       let attackBearingDeg = hullAngleDeg;
       let finalCenter = landCentroid;
       let finalMirrors: [number, number][] = [];
+      let mirroredCityPolygons: [number, number][][] = [];
       let allPoints: [number, number][] = [...landHull];
       let landOutlineSegments: [number, number][][] = [];
+      let landCoastEdgeCenter: [number, number] | undefined;
+      let mirrorCoastEdgeCenterShifted: [number, number] | undefined;
 
       if (isCoastalDeepBarrage) {
+        // Extend land hull to the actual coastline only where there is a gap
+        // (no city polygon between that lat and the sea).
+        const hullMinLat = Math.min(...landHull.map(p => p[0]));
+        const hullMaxLat = Math.max(...landHull.map(p => p[0]));
+
+        // Find the hull's western boundary longitude at a given latitude
+        const hullWestLngAtLat = (lat: number): number => {
+          let minLng = Infinity;
+          for (let i = 0; i < landHull.length; i++) {
+            const p1 = landHull[i], p2 = landHull[(i + 1) % landHull.length];
+            const minL = Math.min(p1[0], p2[0]), maxL = Math.max(p1[0], p2[0]);
+            if (lat >= minL && lat <= maxL && Math.abs(p2[0] - p1[0]) > 1e-10) {
+              const t = (lat - p1[0]) / (p2[0] - p1[0]);
+              const lng = p1[1] + t * (p2[1] - p1[1]);
+              if (lng < minLng) minLng = lng;
+            }
+          }
+          return minLng === Infinity ? Math.min(...landHull.map(p => p[1])) : minLng;
+        };
+
+        // Build non-alerted city polygon list for gap-blocking (scanline intersection)
+        const clusterNames = new Set(cluster.map(c => c.cityName));
+        const nonAlertedPolygons: [number, number][][] = [];
+        for (const [cityName, cityData] of Object.entries(polygons)) {
+          if (clusterNames.has(cityName)) continue;
+          const poly = cityData?.polygon;
+          if (poly && poly.length >= 3) nonAlertedPolygons.push(poly);
+        }
+
+        // Returns true if any city polygon (excluding `excludeName`) intersects the horizontal line at `lat`
+        // with an intersection longitude in [coastLng, hullWestLng)
+        const cityInGap = (lat: number, coastLng: number, excludeName?: string): boolean => {
+          const hullWest = hullWestLngAtLat(lat);
+          // Check non-alerted cities
+          for (const poly of nonAlertedPolygons) {
+            for (let i = 0; i < poly.length; i++) {
+              const p1 = poly[i], p2 = poly[(i + 1) % poly.length];
+              const minL = Math.min(p1[0], p2[0]), maxL = Math.max(p1[0], p2[0]);
+              if (lat <= minL || lat > maxL) continue;
+              const t = (lat - p1[0]) / (p2[0] - p1[0]);
+              const xLng = p1[1] + t * (p2[1] - p1[1]);
+              if (xLng >= coastLng && xLng < hullWest) return true;
+            }
+          }
+          // Also check other alerted cluster cities
+          for (const item of cluster) {
+            if (item.cityName === excludeName) continue;
+            const poly = polygons[item.cityName]?.polygon;
+            if (!poly) continue;
+            for (let i = 0; i < poly.length; i++) {
+              const p1 = poly[i], p2 = poly[(i + 1) % poly.length];
+              const minL = Math.min(p1[0], p2[0]), maxL = Math.max(p1[0], p2[0]);
+              if (lat <= minL || lat > maxL) continue;
+              const t = (lat - p1[0]) / (p2[0] - p1[0]);
+              const xLng = p1[1] + t * (p2[1] - p1[1]);
+              if (xLng >= coastLng && xLng < hullWest) return true;
+            }
+          }
+          return false;
+        };
+        const nonAlertedCityInGap = (lat: number, coastLng: number) => cityInGap(lat, coastLng);
+
+        // Sample every 0.03° (~3km) through the hull lat range to catch all gaps
+        const coastPts: [number, number][] = [];
+        const LAT_STEP = 0.03;
+        for (let lat = hullMinLat; lat <= hullMaxLat + LAT_STEP * 0.5; lat += LAT_STEP) {
+          const sampLat = Math.min(lat, hullMaxLat);
+          const coastLng = coastlineLngAtLat(sampLat);
+          const hullWest = hullWestLngAtLat(sampLat);
+          if (coastLng < hullWest && !nonAlertedCityInGap(sampLat, coastLng))
+            coastPts.push([sampLat, coastLng]);
+        }
+        const extendedHull = coastPts.length > 0
+          ? getConvexHull([...landHull, ...coastPts])
+          : landHull;
+
         const coastPivot: [number, number] = [landCentroid[0], coastlineLngAtLat(landCentroid[0])];
-        const seaMirrors = generateSeaMirrorPoints(landHull, coastPivot);
+        const seaMirrors = generateSeaMirrorPoints(extendedHull, coastPivot);
 
         // Find edge most parallel to coastline on specified side (west for land, east for mirror)
         const coastlineEdge = (hull: [number, number][], westSide: boolean): [[number, number], [number, number]] => {
@@ -521,11 +606,59 @@ export function useImpactEllipses(
           return a[0] >= b[0] ? [a, b] : [b, a];
         };
 
-        const [landP1] = coastlineEdge(landHull, true);
-        const [mirrorP1] = coastlineEdge(seaMirrors, false);
-        const latShift = landP1[0] - mirrorP1[0];
+        const [landP1, landP2] = coastlineEdge(extendedHull, true);
+        const [mirrorP1, mirrorP2] = coastlineEdge(seaMirrors, false);
+        // Align the center of the mirror's coastline edge to the center of the land's coastline edge
+        const landEdgeMidLat = (landP1[0] + landP2[0]) / 2;
+        const mirrorEdgeMidLat = (mirrorP1[0] + mirrorP2[0]) / 2;
+        const latShift = landEdgeMidLat - mirrorEdgeMidLat;
         const lngShift = landP1[1] - mirrorP1[1];
-        finalMirrors = seaMirrors.map(([lat, lng]) => [lat + latShift, lng + lngShift] as [number, number]);
+        landCoastEdgeCenter = [landEdgeMidLat, (landP1[1] + landP2[1]) / 2];
+        mirrorCoastEdgeCenterShifted = [mirrorEdgeMidLat + latShift, (mirrorP1[1] + mirrorP2[1]) / 2 + lngShift];
+
+        // Mirror each individual city polygon into the sea, extended to the coastline
+        for (const item of cluster) {
+          const poly = polygons[item.cityName]?.polygon;
+          if (!poly || poly.length < 3) continue;
+
+          // Extend city to coastline only if no city sits between it and the sea
+          const cityMinLat = Math.min(...poly.map(p => p[0]));
+          const cityMaxLat = Math.max(...poly.map(p => p[0]));
+          const cityWestLng = Math.min(...poly.map(p => p[1]));
+          const midLat = (cityMinLat + cityMaxLat) / 2;
+          const coastAtMid = coastlineLngAtLat(midLat);
+          const extendedPoly: [number, number][] = [...poly];
+          if (coastAtMid < cityWestLng && !cityInGap(midLat, coastAtMid, item.cityName)) {
+            for (let lat = cityMinLat; lat <= cityMaxLat + LAT_STEP * 0.5; lat += LAT_STEP) {
+              const sampLat = Math.min(lat, cityMaxLat);
+              extendedPoly.push([sampLat, coastlineLngAtLat(sampLat)]);
+            }
+          }
+
+          const mirrored = generateSeaMirrorPoints(extendedPoly, coastPivot)
+            .map(([lat, lng]) => [lat + latShift, lng + lngShift] as [number, number]);
+          mirroredCityPolygons.push(mirrored);
+        }
+
+        // Sea polygon = convex hull of all mirrored city polygon vertices + mirrored gap coastline points
+        // Clamped to the land hull's lat range so the mirror doesn't exceed the real alert extent
+        const allMirroredVerts: [number, number][] = [];
+        for (const poly of mirroredCityPolygons)
+          for (const pt of poly)
+            if (pt[0] >= hullMinLat && pt[0] <= hullMaxLat) allMirroredVerts.push(pt);
+        for (const pt of coastPts) {
+          const [mLat, mLng] = generateSeaMirrorPoints([pt], coastPivot)[0];
+          const shifted: [number, number] = [mLat + latShift, mLng + lngShift];
+          if (shifted[0] >= hullMinLat && shifted[0] <= hullMaxLat) allMirroredVerts.push(shifted);
+        }
+        finalMirrors = allMirroredVerts.length >= 3
+          ? getConvexHull(allMirroredVerts)
+          : seaMirrors.map(([lat, lng]) => [lat + latShift, lng + lngShift] as [number, number]);
+
+        // Also clamp individual mirrored city polygons for rendering
+        mirroredCityPolygons.forEach((poly, i) => {
+          mirroredCityPolygons[i] = poly.filter(pt => pt[0] >= hullMinLat && pt[0] <= hullMaxLat);
+        });
 
         allPoints = [...landHull, ...finalMirrors];
         finalCenter = centroid(allPoints);
@@ -595,6 +728,10 @@ export function useImpactEllipses(
         semiMinorKm: semiMinor,
         status: cluster[0].status,
         mirroredPoints: finalMirrors,
+        mirroredPolygons: mirroredCityPolygons,
+        landCityPolygons: cluster.map(item => polygons[item.cityName]?.polygon).filter((p): p is [number, number][] => !!p && p.length >= 3),
+        landCoastEdgeCenter,
+        mirrorCoastEdgeCenter: mirrorCoastEdgeCenterShifted,
         parabolaRing: [],
         parabolaHeading: {
           origin: finalCenter,
