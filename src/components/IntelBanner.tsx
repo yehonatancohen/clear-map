@@ -118,6 +118,7 @@ export default function IntelPanel({
       // show success toast
       const successAlert: ActiveAlert & { toastId: number } = {
         id: "share_ok",
+        city_name: "share_ok",
         city_name_he: "התמונה הורדה בהצלחה",
         status: "pre_alert",
         timestamp: Date.now() / 1000,
@@ -131,6 +132,7 @@ export default function IntelPanel({
         console.error("Share failed:", err);
         const errAlert: ActiveAlert & { toastId: number } = {
           id: "share_err",
+          city_name: "share_err",
           city_name_he: "שיתוף נכשל",
           status: "alert",
           timestamp: Date.now() / 1000,
