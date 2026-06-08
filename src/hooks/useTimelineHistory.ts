@@ -35,7 +35,10 @@ const CATEGORY_MAP: Record<string | number, { category: number | string; desc: s
   1: { category: 1, desc: "ירי רקטות וטילים" },
   2: { category: 2, desc: "חדירת כלי טיס עוין" },
   3: { category: 3, desc: "חדירת מחבלים" },
+  6: { category: 2, desc: "חדירת כלי טיס עוין" },
   10: { category: "pre_alert", desc: "התרעה מוקדמת" },
+  13: { category: "clear", desc: "האירוע הסתיים" },
+  14: { category: "pre_alert", desc: "התקרבו למרחב מוגן" },
   "alert": { category: 1, desc: "ירי רקטות וטילים" },
   "uav": { category: 2, desc: "חדירת כלי טיס עוין" },
   "terrorist": { category: 3, desc: "חדירת מחבלים" },
@@ -126,7 +129,8 @@ export function useHistoryAlerts(enabled = true) {
             else if (
               desc.includes("בדקות הקרובות") || desc.includes("מודיעין") ||
               desc.includes("התרעה מוקדמת") || desc.includes("מוקדמת") ||
-              Number(alert.category) === 10
+              desc.includes("התקרבו למרחב") ||
+              Number(alert.category) === 10 || Number(alert.category) === 14
             ) status = "pre_alert";
 
             const cfg = status ? CATEGORY_MAP[status] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
@@ -199,7 +203,7 @@ export function useHistoryAlerts(enabled = true) {
 
     function statusGroup(alert: SortedAlert): string {
         const s = alert.status || "";
-        if (s === "pre_alert" || Number(alert.category) === 10) return "pre_alert";
+        if (s === "pre_alert" || Number(alert.category) === 10 || Number(alert.category) === 14) return "pre_alert";
         if (s === "clear") return "clear";
         return "alert";
     }
