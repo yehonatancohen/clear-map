@@ -107,15 +107,39 @@ export default function IntelPanel({
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], text });
       } else {
+        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
+        a.href = url;
         a.download = "clearmap-status.png";
         a.click();
-        URL.revokeObjectURL(a.href);
-        await navigator.clipboard.writeText(text);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        try { await navigator.clipboard.writeText(text); } catch { /* clipboard not available */ }
       }
+      // show success toast
+      const successAlert: ActiveAlert & { toastId: number } = {
+        id: "share_ok",
+        city_name_he: "התמונה הורדה בהצלחה",
+        status: "pre_alert",
+        timestamp: Date.now() / 1000,
+        is_double: false,
+        toastId: ++toastIdCounter.current,
+      };
+      setToasts((prev) => [...prev, successAlert]);
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.toastId !== successAlert.toastId)), 3000);
     } catch (err) {
-      console.error("Share failed:", err);
+      if ((err as Error)?.name !== "AbortError") {
+        console.error("Share failed:", err);
+        const errAlert: ActiveAlert & { toastId: number } = {
+          id: "share_err",
+          city_name_he: "שיתוף נכשל",
+          status: "alert",
+          timestamp: Date.now() / 1000,
+          is_double: false,
+          toastId: ++toastIdCounter.current,
+        };
+        setToasts((prev) => [...prev, errAlert]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.toastId !== errAlert.toastId)), 3000);
+      }
     } finally {
       if (wasOpen) setIsOpen(true);
       if (wasAbout) setShowAbout(true);

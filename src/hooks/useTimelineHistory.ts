@@ -123,7 +123,7 @@ export function useHistoryAlerts(enabled = true) {
             let status = "";
             const desc = alert.category_desc || "";
             if (desc.includes("ניתן לצאת") || desc.includes("הסתיים")) status = "clear";
-            else if (desc.includes("בדקות הקרובות") || desc.includes("מודיעין")) status = "pre_alert";
+            else if (desc.includes("בדקות הקרובות") || desc.includes("מודיעין") || alert.category === 10) status = "pre_alert";
 
             const cfg = status ? CATEGORY_MAP[status] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
             const byCat = new Map<number | string, string[]>();

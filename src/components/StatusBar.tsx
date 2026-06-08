@@ -15,7 +15,7 @@ const CHIPS: {
   { key: "alert",       dot: "#FF2A2A", color: "#FF2A2A", label: "ירי טילים",    pulse: true  },
   { key: "uav",         dot: "#E040FB", color: "#E040FB", label: 'כטב"מ',        pulse: true  },
   { key: "terrorist",   dot: "#FF0055", color: "#FF0055", label: "מחבלים",       pulse: true  },
-  { key: "pre_alert",   dot: "#FF6A00", color: "#FF6A00", label: "מוקדם"                      },
+  { key: "pre_alert",   dot: "#FF6A00", color: "#FF6A00", label: "התרעות מוקדמות"              },
   { key: "after_alert", dot: "#FF2A2A", color: "#aaa",    label: 'בממ"ד'                       },
 ];
 
