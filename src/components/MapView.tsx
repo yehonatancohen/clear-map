@@ -56,7 +56,7 @@ function TileCrossfadeStyle() {
     if (document.getElementById(TILE_FADE_STYLE_ID)) return;
     const style = document.createElement("style");
     style.id = TILE_FADE_STYLE_ID;
-    style.textContent = `.leaflet-tile-pane .leaflet-layer { transition: opacity 2s ease-in-out; }`;
+    style.textContent = `.leaflet-tile-pane .leaflet-layer { transition: opacity 0.4s ease-in-out; }`;
     document.head.appendChild(style);
   }, []);
   return null;
@@ -429,6 +429,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           onThemeChange={setTheme}
           mode={mode}
           onModeChange={setMode}
+          cityList={polygons ? Object.keys(polygons).sort() : []}
         />
       )}
       {!isBroadcast && <LiveIndicator mode={mode} />}
