@@ -85,7 +85,7 @@ export function useHistoryAlerts(enabled = true) {
           date: dateStr,
           time: dateObj.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
           alertDate: dateObj.toISOString(),
-          category: typeof cfg.category === 'number' ? cfg.category : 1,
+          category: entry.status === "pre_alert" ? 10 : (typeof cfg.category === 'number' ? cfg.category : 1),
           status: entry.status,
           category_desc: cfg.desc,
           matrix_id: 0, rid: 0, _ts: ts,
@@ -123,7 +123,11 @@ export function useHistoryAlerts(enabled = true) {
             let status = "";
             const desc = alert.category_desc || "";
             if (desc.includes("ניתן לצאת") || desc.includes("הסתיים")) status = "clear";
-            else if (desc.includes("בדקות הקרובות") || desc.includes("מודיעין") || alert.category === 10) status = "pre_alert";
+            else if (
+              desc.includes("בדקות הקרובות") || desc.includes("מודיעין") ||
+              desc.includes("התרעה מוקדמת") || desc.includes("מוקדמת") ||
+              Number(alert.category) === 10
+            ) status = "pre_alert";
 
             const cfg = status ? CATEGORY_MAP[status] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
             const byCat = new Map<number | string, string[]>();
@@ -195,7 +199,7 @@ export function useHistoryAlerts(enabled = true) {
 
     function statusGroup(alert: SortedAlert): string {
         const s = alert.status || "";
-        if (s === "pre_alert" || alert.category === 10) return "pre_alert";
+        if (s === "pre_alert" || Number(alert.category) === 10) return "pre_alert";
         if (s === "clear") return "clear";
         return "alert";
     }
