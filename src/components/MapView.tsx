@@ -25,6 +25,7 @@ import HistoryPanel from "./HistoryPanel";
 import { useHistoryAlerts, SortedAlert } from "@/hooks/useTimelineHistory";
 import CityLabels from "./CityLabels";
 import { SupportBanner } from "./SupportBanner";
+import { BugBanner } from "./BugBanner";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
@@ -432,6 +433,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
       )}
       {!isBroadcast && <LiveIndicator mode={mode} />}
       {!isBroadcast && <SupportBanner />}
+      {!isBroadcast && <BugBanner />}
       <MapContainer
         center={initialCenter}
         zoom={initialZoom}
