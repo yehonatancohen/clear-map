@@ -66,8 +66,6 @@ export function SettingsPanel({
 
           <Toggle label='מסלול כטב"מ' desc="הצגת מסלול טיסה משוער וחיזוי" checked={settings.showUavPath} accentClass="bg-purple-600"
             onChange={() => updateSettings({ showUavPath: !settings.showUavPath })} />
-          <Toggle label="אזור פגיעה משוער" desc="הערכת אזור פגיעה אוטומטית לפי מיקומי התרעות" checked={settings.showImpactZones} accentClass="bg-red-600"
-            onChange={() => updateSettings({ showImpactZones: !settings.showImpactZones })} />
           <Toggle label="המיקום שלי" desc="הצגת מיקום נוכחי ומרכוז בעת התרעה באזורך" checked={settings.showMyLocation} accentClass="bg-blue-600"
             onChange={() => updateSettings({ showMyLocation: !settings.showMyLocation })} />
           <Toggle label="מסך מלא" desc="הצגת המפה על פני כל המסך" checked={isFullscreen} accentClass="bg-blue-600"

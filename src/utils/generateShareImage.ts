@@ -11,6 +11,44 @@ const STATUS_META: Record<string, { emoji: string; label: string; color: string;
   clear: { emoji: "\uD83D\uDFE2", label: "ניתן לצאת מהמרחב המוגן", color: "rgba(16,185,129,0.9)", fill: "rgba(16,185,129,0.3)", glow: "rgba(16,185,129,0.6)", dot: "#10B981" },
 };
 
+/**
+ * Tries to generate the share image on the clearmap-screenshots server —
+ * the same Playwright + Pillow pipeline that produces the Telegram
+ * broadcast images — using the current map's center/zoom. Returns null if
+ * the server isn't configured or the request fails/times out, so callers
+ * can fall back to the client-side canvas render.
+ */
+export async function generateServerShareImage(
+  theme: "light" | "dark" = "dark",
+  timeoutMs = 30000,
+): Promise<Blob | null> {
+  const base = process.env.NEXT_PUBLIC_SHARE_SCREENSHOT_URL;
+  if (!base) return null;
+
+  const map = getMapInstance();
+  if (!map) return null;
+
+  const center = map.getCenter();
+  const zoom = map.getZoom();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${base.replace(/\/$/, "")}/api/share-screenshot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat: center.lat, lon: center.lng, zoom, theme }),
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Global cache for polygons to avoid repeated fetches
 let cachedPolygons: Record<string, { polygon: [number, number][] }> | null = null;
 

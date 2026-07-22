@@ -25,6 +25,8 @@ interface IntelPanelProps {
   mode?: MapMode;
   onModeChange?: (mode: MapMode) => void;
   cityList?: string[];
+  /** Alerts for the currently-selected history batch, shown when mode === "history". Used by the Share button so it captures what's actually on screen. */
+  historyAlerts?: ActiveAlert[];
 }
 
 export default function IntelPanel({
@@ -36,6 +38,7 @@ export default function IntelPanel({
   mode = "live",
   onModeChange,
   cityList: cityListProp,
+  historyAlerts,
 }: IntelPanelProps) {
   // ── Panel visibility ──────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
@@ -101,9 +104,11 @@ export default function IntelPanel({
     const wasLegend = showLegend; setShowLegend(false);
     try {
       await new Promise((r) => setTimeout(r, 350));
-      const blob = await generateShareImage(alerts, theme);
+      // In history mode, share whatever batch the user has open instead of the live alerts.
+      const shareAlerts = mode === "history" ? (historyAlerts ?? []) : alerts;
+      const blob = await generateShareImage(shareAlerts, theme);
       const file = new File([blob], "clearmap-status.png", { type: "image/png" });
-      const text = buildShareText(alerts);
+      const text = buildShareText(shareAlerts);
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], text });
       } else {
@@ -120,7 +125,7 @@ export default function IntelPanel({
         id: "share_ok",
         city_name: "share_ok",
         city_name_he: "התמונה הורדה בהצלחה",
-        status: "pre_alert",
+        status: "info",
         timestamp: Date.now() / 1000,
         is_double: false,
         toastId: ++toastIdCounter.current,
@@ -134,7 +139,7 @@ export default function IntelPanel({
           id: "share_err",
           city_name: "share_err",
           city_name_he: "שיתוף נכשל",
-          status: "alert",
+          status: "error",
           timestamp: Date.now() / 1000,
           is_double: false,
           toastId: ++toastIdCounter.current,

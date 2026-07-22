@@ -341,7 +341,8 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const initialZoom = isBroadcast && rawZoom ? parseInt(rawZoom, 10) : DEFAULT_ZOOM;
 
   const showUav = isBroadcast && rawUav ? rawUav === "true" : settings.showUavPath;
-  const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : settings.showImpactZones;
+  // Impact ellipses are temporarily disabled for regular users (kept for broadcast screenshots).
+  const showEllipse = isBroadcast && rawEllipse ? rawEllipse === "true" : false;
   const showMyLocation = settings.showMyLocation && userCoords !== null;
 
   // Auto theme logic: URL param > Manual setting
@@ -429,6 +430,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           mode={mode}
           onModeChange={setMode}
           cityList={polygons ? Object.keys(polygons).sort() : []}
+          historyAlerts={historyMappedAlerts}
         />
       )}
       {!isBroadcast && <LiveIndicator mode={mode} />}
@@ -503,8 +505,8 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           <CityLabels 
             polygons={polygons} 
             theme={effectiveTheme} 
-            alerts={mode === "live" ? alerts : undefined} 
-            ellipses={mode === "live" ? impactEllipses : undefined} 
+            alerts={mode === "live" ? alerts : undefined}
+            ellipses={mode === "live" && showEllipse ? impactEllipses : undefined}
           />
         )}
       </MapContainer>

@@ -66,6 +66,7 @@ export function useHistoryAlerts(enabled = true) {
   const [fbBatches, setFbBatches] = useState<AlertBatch[]>([]);
   const [externalBatches, setExternalBatches] = useState<AlertBatch[]>([]);
   const [loading, setLoading] = useState(false);
+  const loadingRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
 
   // 1. Firebase Listen
@@ -106,7 +107,8 @@ export function useHistoryAlerts(enabled = true) {
 
   // 2. Fetch External
   const fetchExternal = useCallback(async () => {
-    if (loading) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     try {
       const url = new URL("/api/oref-history", window.location.origin);
@@ -166,9 +168,10 @@ export function useHistoryAlerts(enabled = true) {
     } catch (err) {
       console.error("External history error:", err);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [loading]);
+  }, []);
 
   useEffect(() => {
     if (enabled && externalBatches.length === 0) fetchExternal();

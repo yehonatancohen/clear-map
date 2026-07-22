@@ -8,6 +8,8 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
   uav:         { label: "כלי טיס עוין",     color: "text-[#E040FB]", dot: "bg-[#E040FB]",  bg: "border-[#E040FB]/20" },
   terrorist:   { label: "חדירת מחבלים",     color: "text-[#FF0055]", dot: "bg-[#FF0055]",  bg: "border-[#FF0055]/20" },
   after_alert: { label: 'להישאר בממ"ד',     color: "text-[#FF2A2A]/70", dot: "bg-[#FF2A2A]/50", bg: "border-[#FF2A2A]/10" },
+  info:        { label: "",                 color: "text-emerald-400", dot: "bg-emerald-400", bg: "border-emerald-400/20" },
+  error:       { label: "",                 color: "text-red-400",     dot: "bg-red-400",      bg: "border-red-400/20" },
 };
 
 interface ToastContainerProps {
@@ -31,9 +33,11 @@ export function ToastContainer({ toasts }: ToastContainerProps) {
           >
             <span className={`h-2.5 w-2.5 rounded-full ${config.dot} status-dot-pulse`} />
             <div className="flex flex-col text-right">
-              <span className={`font-bold text-[11px] ${config.color} leading-none mb-1 opacity-90`}>
-                {config.label}
-              </span>
+              {config.label && (
+                <span className={`font-bold text-[11px] ${config.color} leading-none mb-1 opacity-90`}>
+                  {config.label}
+                </span>
+              )}
               <span className="font-bold text-[14px] text-white leading-none tracking-tight">
                 {t.city_name_he}
               </span>
