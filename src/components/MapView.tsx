@@ -29,8 +29,8 @@ import { SupportBanner } from "./SupportBanner";
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
 const THEMES = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-  light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
+  dark: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+  light: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   google: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw",
 };
 
@@ -452,10 +452,10 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           />
         )}
         {/* Base: dark tiles always present */}
-        <TileLayer 
-          url={THEMES.dark} 
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' 
-          crossOrigin="anonymous" 
+        <TileLayer
+          url={THEMES.dark}
+          attribution='&copy; <a href="https://www.esri.com">Esri</a>'
+          crossOrigin="anonymous"
           opacity={settings.theme === "google" ? 0 : 1}
         />
         {/* Light tiles on top — opacity controls the blend */}
