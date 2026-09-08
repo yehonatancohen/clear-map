@@ -28,10 +28,22 @@ import { SupportBanner } from "./SupportBanner";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
+// CARTO killed anonymous access to basemaps.cartocdn.com (every tile now comes
+// back stamped with an "API KEY REQUIRED" watermark), so the base map is served
+// from Google's road tiles instead. The dark/light look is produced with a CSS
+// filter on the tile layer (see MAP_TILE_STYLE below) rather than by swapping
+// providers, which keeps street-level zoom (~20) and avoids a second dependency.
+// `apistyle=s.e:l|p.v:off` strips every label and POI from the tiles so they
+// don't fight the app's own CityLabels overlay; the explicit "google" theme
+// keeps the fully-labelled map on purpose.
+const GOOGLE_ROADS_NOLABELS =
+  "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw&apistyle=s.e%3Al%7Cp.v%3Aoff";
+const GOOGLE_ROADS = "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw";
+const MAX_TILE_ZOOM = 20;
 const THEMES = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-  light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
-  google: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw",
+  dark: GOOGLE_ROADS_NOLABELS,
+  light: GOOGLE_ROADS_NOLABELS,
+  google: GOOGLE_ROADS,
 };
 
 
@@ -49,13 +61,27 @@ function SetViewOnLoad({ lat, lon, zoom }: { lat: number; lon: number; zoom: num
 }
 
 const TILE_FADE_STYLE_ID = "tile-crossfade-style";
+// Both base layers pull the same Google road tiles; the dark/light appearance is
+// a CSS filter. `invert + hue-rotate` is the standard "dark map" trick (white
+// land -> near-black, water/parks keep a plausible hue); the extra
+// brightness/contrast/saturate knobs mute it so the coloured alert polygons
+// drawn on top stay legible. The light layer is only lightly desaturated.
+const MAP_TILE_STYLE = `
+.leaflet-tile-pane .leaflet-layer { transition: opacity 0.4s ease-in-out; }
+.leaflet-tile-pane .map-tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.78) contrast(0.95) saturate(0.42) grayscale(0.32);
+}
+.leaflet-tile-pane .map-tiles-light {
+  filter: saturate(0.5) brightness(1.03) contrast(0.95);
+}
+`;
 function TileCrossfadeStyle() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     if (document.getElementById(TILE_FADE_STYLE_ID)) return;
     const style = document.createElement("style");
     style.id = TILE_FADE_STYLE_ID;
-    style.textContent = `.leaflet-tile-pane .leaflet-layer { transition: opacity 0.4s ease-in-out; }`;
+    style.textContent = MAP_TILE_STYLE;
     document.head.appendChild(style);
   }, []);
   return null;
@@ -451,24 +477,32 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
             zoom={parseInt(rawZoom, 10)}
           />
         )}
-        {/* Base: dark tiles always present */}
-        <TileLayer 
-          url={THEMES.dark} 
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' 
-          crossOrigin="anonymous" 
+        {/* Base: dark tiles always present (Google roads + dark CSS filter) */}
+        <TileLayer
+          url={THEMES.dark}
+          className="map-tiles-dark"
+          attribution='&copy; <a href="https://www.google.com/intl/en_us/help/terms_maps/">Google</a>'
+          crossOrigin="anonymous"
+          maxNativeZoom={MAX_TILE_ZOOM}
+          maxZoom={MAX_TILE_ZOOM}
           opacity={settings.theme === "google" ? 0 : 1}
         />
         {/* Light tiles on top — opacity controls the blend */}
         <TileLayer
           url={THEMES.light}
-          opacity={settings.theme === "google" ? 0 : (settings.theme === "auto" ? sunCycle.dayFactor : effectiveTheme === "light" ? 1 : 0)}
+          className="map-tiles-light"
           crossOrigin="anonymous"
+          maxNativeZoom={MAX_TILE_ZOOM}
+          maxZoom={MAX_TILE_ZOOM}
+          opacity={settings.theme === "google" ? 0 : (settings.theme === "auto" ? sunCycle.dayFactor : effectiveTheme === "light" ? 1 : 0)}
         />
-        {/* Google Maps Layer */}
+        {/* Explicit "Google" theme — unfiltered road map */}
         {settings.theme === "google" && (
           <TileLayer
             url={THEMES.google}
             crossOrigin="anonymous"
+            maxNativeZoom={MAX_TILE_ZOOM}
+            maxZoom={MAX_TILE_ZOOM}
           />
         )}
 
