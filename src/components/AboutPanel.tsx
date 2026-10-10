@@ -51,11 +51,9 @@ export function AboutPanel({
 }: AboutPanelProps) {
   return (
     <div
-      className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-96 glass-overlay max-w-sm max-h-[85vh] overflow-y-auto flex flex-col"
+      className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass glass-pop rounded-3xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-96 glass-overlay max-w-sm max-h-[85vh] overflow-y-auto scrollbar-thin flex flex-col"
       dir="rtl"
     >
-      <div className="about-shimmer absolute inset-0 rounded-2xl pointer-events-none" />
-
       {view === "settings" ? (
         <SettingsPanel
           settings={settings}
@@ -101,7 +99,7 @@ function AboutView({
           מפה שקופה
           <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70 font-medium">v1.2</span>
         </h3>
-        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg text-white/40">
+        <button onClick={onClose} aria-label="סגור" className="glass-btn-filled h-8 w-8 rounded-full text-white/70">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -134,14 +132,14 @@ function AboutView({
 
       <div className="flex gap-2 mb-3">
         <button onClick={onShare} disabled={isCapturing}
-          className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 bg-white/10 hover:bg-white/15 transition-all border border-white/10 active:scale-[0.98] ${isCapturing ? "opacity-50 pointer-events-none" : ""}`}>
+          className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 bg-white/10 hover:bg-white/15 transition-[background-color,transform] duration-150 border border-white/10 active:scale-[0.98] ${isCapturing ? "opacity-50 pointer-events-none" : ""}`}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/60">
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/>
           </svg>
           <span className="text-[12px] font-bold text-white/80">שתף</span>
         </button>
         <a href="https://t.me/clearmapchannel" target="_blank" rel="noopener noreferrer"
-          className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 bg-[#0088cc]/20 text-[#0088cc] hover:bg-[#0088cc]/30 border border-[#0088cc]/30 active:scale-[0.98] transition-all">
+          className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 bg-[#0088cc]/20 text-[#0088cc] hover:bg-[#0088cc]/30 border border-[#0088cc]/30 active:scale-[0.98] transition-[background-color,transform] duration-150">
           <span className="text-[12px] font-bold">טלגרם</span>
         </a>
       </div>
@@ -164,7 +162,7 @@ function NavRow({ icon, label, onClick, accent, subtle }: { icon: React.ReactNod
       : "bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/20"
     : "bg-white/10 hover:bg-white/15 text-white border border-white/10";
   return (
-    <button onClick={onClick} className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl transition-all shadow-lg active:scale-[0.98] ${cls}`}>
+    <button onClick={onClick} className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl transition-[background-color,transform] duration-150 active:scale-[0.98] ${cls}`}>
       <div className="flex items-center gap-3">
         {icon}
         <span className="text-[13px] font-bold">{label}</span>

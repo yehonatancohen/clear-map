@@ -13,13 +13,12 @@ export default function TimelineModeToggle({
 }: TimelineModeToggleProps) {
   return (
     <div className="absolute top-3 left-28 z-[1000] glass-overlay" dir="rtl">
-      <div className="liquid-glass rounded-xl flex overflow-hidden">
+      <div className="liquid-glass glass-segment rounded-full flex gap-0.5 p-1">
         <button
           onClick={() => onToggle("live")}
-          className={`px-3 py-1.5 text-[11px] font-bold tracking-wide transition-all duration-200 ${
-            mode === "live"
-              ? "bg-emerald-500/30 text-emerald-400"
-              : "text-white/40 hover:text-white/60"
+          aria-pressed={mode === "live"}
+          className={`rounded-full px-3 py-1.5 text-[11px] font-bold tracking-wide ${
+            mode === "live" ? "text-emerald-300" : "text-white/60 hover:text-white/80"
           }`}
         >
           <span className="flex items-center gap-1.5">
@@ -31,10 +30,9 @@ export default function TimelineModeToggle({
         </button>
         <button
           onClick={() => onToggle("history")}
-          className={`px-3 py-1.5 text-[11px] font-bold tracking-wide transition-all duration-200 ${
-            mode === "history"
-              ? "bg-blue-500/30 text-blue-400"
-              : "text-white/40 hover:text-white/60"
+          aria-pressed={mode === "history"}
+          className={`rounded-full px-3 py-1.5 text-[11px] font-bold tracking-wide ${
+            mode === "history" ? "text-blue-300" : "text-white/60 hover:text-white/80"
           }`}
         >
           <span className="flex items-center gap-1.5">

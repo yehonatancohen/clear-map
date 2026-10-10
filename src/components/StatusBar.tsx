@@ -27,14 +27,7 @@ export function StatusBar({ counts, onClick }: StatusBarProps) {
     <button
       onClick={onClick}
       dir="rtl"
-      className="absolute bottom-4 right-3 left-3 z-[1000] glass-overlay flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 transition-all hover:brightness-110 active:scale-[0.99]"
-      style={{
-        background: "rgba(9,9,11,0.88)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-      }}
+      className="absolute bottom-4 right-3 left-3 z-[1000] glass-overlay liquid-glass flex items-center justify-between gap-3 rounded-[22px] px-4 py-2.5 transition-transform duration-200 ease-out active:scale-[0.985]"
     >
       {/* Alert chips */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -56,7 +49,7 @@ export function StatusBar({ counts, onClick }: StatusBarProps) {
       <svg
         width="14" height="14" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" strokeWidth="2.5"
-        className="text-white/30 flex-shrink-0"
+        className="text-white/50 flex-shrink-0"
       >
         <path d="M18 15l-6-6-6 6" />
       </svg>

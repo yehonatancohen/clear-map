@@ -7,14 +7,14 @@ interface LegendPanelProps {
 export function LegendPanel({ onClose }: LegendPanelProps) {
   return (
     <div
-      className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass rounded-2xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-md"
+      className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass glass-pop rounded-3xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-80 glass-overlay max-w-md"
       dir="rtl"
     >
       <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
         <h3 className="text-sm font-bold text-white/90">מקרא התרעות</h3>
         <button
           onClick={onClose}
-          className="p-1 hover:bg-white/10 rounded-lg text-white/40"
+          aria-label="סגור" className="glass-btn-filled h-8 w-8 rounded-full text-white/70"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />

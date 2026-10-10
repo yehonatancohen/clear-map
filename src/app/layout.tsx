@@ -1,9 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
+import { Heebo } from "next/font/google";
 import { PwaRegistry } from "@/components/PwaRegistry";
 import { SettingsProvider } from "@/hooks/useNotificationSettings";
 import "./globals.css";
+
+// Self-hosted at build time: no render-blocking request to Google Fonts
+const heebo = Heebo({
+  subsets: ["hebrew", "latin"],
+  display: "swap",
+  variable: "--font-ui",
+});
 
 export const viewport: Viewport = {
   themeColor: "#030712",
@@ -58,13 +66,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="he" dir="rtl" suppressHydrationWarning>
+    <html lang="he" dir="rtl" className={heebo.variable} suppressHydrationWarning>
       <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-          crossOrigin="anonymous"
-        />
         <meta property="og:logo" content="https://clearmap.co.il/favicon-192.png" />
         <script
           type="application/ld+json"

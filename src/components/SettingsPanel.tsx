@@ -44,7 +44,7 @@ export function SettingsPanel({
   return (
     <div className="flex flex-col flex-1">
       <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-2 flex-shrink-0">
-        <button onClick={onBack} className="p-1 hover:bg-white/10 rounded-lg text-white/70">
+        <button onClick={onBack} aria-label="חזרה" className="glass-btn-filled h-8 w-8 rounded-full text-white/70">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="rotate-180">
             <path d="M9 18l6-6-6-6" />
           </svg>
@@ -57,7 +57,7 @@ export function SettingsPanel({
         <div className="space-y-2.5">
           <SectionLabel>תצוגה</SectionLabel>
           <SectionLabel>ערכת נושא</SectionLabel>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="glass-segment grid grid-cols-2 gap-1 rounded-2xl p-1">
             <ThemeBtn active={settings.theme === "light"} onClick={() => { updateSettings({ theme: "light" }); onThemeChange("light"); }}>בוקר</ThemeBtn>
             <ThemeBtn active={settings.theme === "auto"} accent="amber" onClick={() => updateSettings({ theme: "auto" })}>אוטומטי</ThemeBtn>
             <ThemeBtn active={settings.theme === "dark"} onClick={() => { updateSettings({ theme: "dark" }); onThemeChange("dark"); handleDarkSecretTap?.(); }}>לילה</ThemeBtn>
@@ -172,17 +172,17 @@ export function SettingsPanel({
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="text-[11px] font-bold text-white/30 uppercase tracking-wider text-right pr-1">{children}</div>;
+  return <div className="text-[11px] font-bold text-white/50 uppercase tracking-wider text-right pr-1">{children}</div>;
 }
 
 function ThemeBtn({ active, accent, onClick, children }: { active: boolean; accent?: "amber" | "blue"; onClick: () => void; children: React.ReactNode }) {
   const activeClass = accent === "amber"
-    ? "bg-amber-500/30 text-amber-200 border border-amber-400/30"
+    ? "bg-amber-500/30 text-amber-200"
     : accent === "blue"
-    ? "bg-blue-500/30 text-blue-200 border border-blue-400/30"
-    : "bg-white/20 text-white border border-white/20";
+    ? "bg-blue-500/30 text-blue-200"
+    : "text-white";
   return (
-    <button onClick={onClick} className={`flex items-center justify-center gap-1.5 rounded-xl py-2 transition-all ${active ? activeClass : "bg-white/5 text-white/40 hover:bg-white/10"}`}>
+    <button onClick={onClick} aria-pressed={active} className={`flex items-center justify-center gap-1.5 rounded-xl py-2 ${active ? activeClass : "text-white/60 hover:text-white/85"}`}>
       <span className="text-[12px] font-medium">{children}</span>
     </button>
   );
@@ -194,17 +194,20 @@ function Toggle({
   label: string; labelClass?: string; desc: string; checked: boolean; accentClass: string; onChange: () => void;
 }) {
   return (
-    <div className="liquid-glass-subtle border border-white/5 rounded-xl p-3 flex items-center justify-between">
+    <div className="liquid-glass-subtle rounded-xl p-3 flex items-center justify-between gap-3">
       <div className="flex flex-col text-right">
         <span className={`text-[13px] font-bold ${labelClass}`}>{label}</span>
-        <span className="text-[10px] text-white/40 leading-tight">{desc}</span>
+        <span className="text-[10px] text-white/60 leading-tight">{desc}</span>
       </div>
       <button
         onClick={onChange}
         dir="ltr"
-        className={`relative inline-flex h-5 w-10 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${checked ? accentClass : "bg-white/10"}`}
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        className={`relative inline-flex h-6 w-[42px] flex-shrink-0 items-center rounded-full transition-colors duration-200 ${checked ? accentClass : "bg-white/15"}`}
       >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${checked ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.4)] transition-transform duration-200 ease-out ${checked ? "translate-x-5" : "translate-x-0.5"}`} />
       </button>
     </div>
   );

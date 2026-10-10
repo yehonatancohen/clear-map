@@ -100,12 +100,12 @@ export default function HistoryPanel({
     >
       {/* Drag handle + Header */}
       <div
-        className="flex flex-col items-center px-5 pt-2.5 pb-4 border-b border-white/5 sm:cursor-default touch-none select-none"
+        className="flex flex-col items-center px-5 pt-2.5 pb-4 border-b border-white/10 sm:cursor-default touch-none select-none"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
         {/* Pill — mobile only */}
-        <div className="w-8 h-1 rounded-full bg-white/20 mb-3 sm:hidden" />
+        <div className="w-9 h-[5px] rounded-full bg-white/30 mb-3 sm:hidden" />
         <div className="flex items-center justify-between w-full">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
@@ -115,7 +115,7 @@ export default function HistoryPanel({
             </svg>
             <h2 className="text-[16px] font-bold text-white text-right">היסטוריית אירועים</h2>
           </div>
-          <span className="text-[11px] text-white/40 font-medium">
+          <span className="text-[11px] text-white/60 font-medium">
             מציג {batches.length} אירועים אחרונים
           </span>
         </div>
@@ -123,8 +123,9 @@ export default function HistoryPanel({
             <button
                 onClick={onLoadMore}
                 disabled={loading}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-all disabled:opacity-50"
+                className="glass-btn-filled h-9 w-9 rounded-full text-white/70 disabled:opacity-50"
                 title="רענן"
+                aria-label="רענן"
             >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={loading ? "animate-spin" : ""}>
                     <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
@@ -132,7 +133,8 @@ export default function HistoryPanel({
             </button>
             <button
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-all"
+            aria-label="סגור"
+            className="glass-btn-filled h-9 w-9 rounded-full text-white/70"
             >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -146,7 +148,7 @@ export default function HistoryPanel({
       {/* Batched alert list */}
       <div className="scrollbar-thin flex-1 overflow-y-auto px-3 py-3 space-y-5">
         {batches.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center h-full text-center p-6 opacity-20">
+          <div className="flex flex-col items-center justify-center h-full text-center p-6 opacity-50">
             <h3 className="text-white text-[14px] font-bold mb-1">אין התרעות</h3>
             <p className="text-white text-[12px]">לא נמצאו התרעות אחרונות</p>
           </div>
@@ -155,7 +157,7 @@ export default function HistoryPanel({
         {Array.from(grouped.entries()).map(([date, dayBatches]) => (
           <div key={date} className="space-y-2.5">
             {/* Date header */}
-            <div className="sticky top-0 z-10 flex items-center gap-2 py-2 px-3 rounded-xl bg-zinc-900/90 backdrop-blur-md border border-white/5 shadow-lg">
+            <div className="sticky top-0 z-10 flex items-center gap-2 py-2 px-3 rounded-full bg-zinc-900 border border-white/10">
               <span className="text-[11px] font-bold text-blue-400">{date}</span>
               <div className="flex-1 h-px bg-white/10" />
             </div>
@@ -173,18 +175,18 @@ export default function HistoryPanel({
                   <button
                     key={batch.id}
                     onClick={() => handleBatchClick(batch)}
-                    className={`w-full text-right liquid-glass-subtle rounded-[20px] p-4 border-r-4 transition-all duration-300 ${
+                    className={`w-full text-right liquid-glass-subtle rounded-2xl p-4 transition-[background-color,border-color] duration-200 ${
                       isSelected
-                        ? "border-blue-400 bg-blue-500/10 ring-1 ring-blue-500/20"
+                        ? "border-blue-400/70 bg-blue-500/15"
                         : isClear 
                           ? "border-emerald-500/40 hover:bg-emerald-500/5"
                           : isPre
                             ? "border-amber-500/40 hover:bg-amber-500/5"
-                            : "border-white/5 hover:bg-white/5"
+                            : "hover:bg-white/10"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2.5">
-                      <span className={`text-[12px] font-bold tabular-nums ${isSelected ? "text-blue-400" : "text-white/40"}`}>
+                      <span className={`text-[12px] font-bold tabular-nums ${isSelected ? "text-blue-300" : "text-white/60"}`}>
                         {timeLabel}
                       </span>
                       {batch.alerts.length > 1 && !isClear && (
@@ -200,7 +202,7 @@ export default function HistoryPanel({
                         return (
                           <div key={cat}>
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot} shadow-[0_0_8px] shadow-current`} />
+                              <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
                               <span className={`text-[12px] font-bold ${cfg.color}`}>
                                 {cfg.label}
                               </span>
@@ -226,9 +228,9 @@ export default function HistoryPanel({
         <div ref={observerTarget} className="h-10 flex items-center justify-center">
           {loading && (
             <div className="flex gap-2">
-              <div className="w-1.5 h-1.5 bg-blue-500/40 rounded-full animate-bounce [animation-duration:0.8s]" />
-              <div className="w-1.5 h-1.5 bg-blue-500/40 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.2s]" />
-              <div className="w-1.5 h-1.5 bg-blue-500/40 rounded-full animate-bounce [animation-duration:0.8s] [animation-delay:0.4s]" />
+              <div className="w-1.5 h-1.5 bg-blue-500/40 rounded-full animate-pulse [animation-duration:0.8s]" />
+              <div className="w-1.5 h-1.5 bg-blue-500/40 rounded-full animate-pulse [animation-duration:0.8s] [animation-delay:0.2s]" />
+              <div className="w-1.5 h-1.5 bg-blue-500/40 rounded-full animate-pulse [animation-duration:0.8s] [animation-delay:0.4s]" />
             </div>
           )}
         </div>

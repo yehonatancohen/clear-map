@@ -50,7 +50,7 @@
 body {
   background: #030712;
   color: #ffffff;
-  font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-ui), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   padding-top: env(safe-area-inset-top);
@@ -59,35 +59,156 @@ body {
   padding-right: env(safe-area-inset-right);
 }
 
-/* ─── Liquid Glass (iOS-inspired) ─── */
-.liquid-glass {
-  background: linear-gradient(135deg,
-      rgba(9, 9, 11, 0.88) 0%,
-      rgba(9, 9, 11, 0.75) 50%,
-      rgba(9, 9, 11, 0.85) 100%);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+/* ─── Liquid Glass ───
+   The control layer that floats above the map. Lives in @layer components so
+   Tailwind utilities (tints, borders, radii) can still override it.
+   Perf rules: one backdrop-filter per floating surface, never nested, small
+   blur radius; everything inside a glass surface is a flat fill. */
+:root {
+  --glass-tint: 22, 22, 28;
+  --glass-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.liquid-glass-subtle {
-  background: linear-gradient(135deg,
-      rgba(9, 9, 11, 0.65) 0%,
-      rgba(9, 9, 11, 0.45) 100%);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+@layer components {
+  .liquid-glass {
+    background-color: rgba(var(--glass-tint), 0.78);
+    background-image: linear-gradient(180deg,
+        rgba(255, 255, 255, 0.09) 0%,
+        rgba(255, 255, 255, 0.02) 38%,
+        rgba(255, 255, 255, 0) 100%);
+    backdrop-filter: blur(14px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    box-shadow:
+      0 10px 28px -6px rgba(0, 0, 0, 0.5),
+      0 2px 6px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+  }
+
+  /* Same rim and depth, no backdrop sampling — for surfaces that stack or
+     repeat (toasts), where a blur per item would cost a compositor pass each. */
+  .glass-solid {
+    background-color: rgba(var(--glass-tint), 0.94);
+    background-image: linear-gradient(180deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        rgba(255, 255, 255, 0) 45%);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    box-shadow:
+      0 10px 28px -6px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+
+  /* Content inside a glass surface: flat fill, no blur (no glass on glass). */
+  .liquid-glass-subtle {
+    background-color: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  /* Controls that sit on glass */
+  .glass-btn,
+  .glass-btn-filled {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    transition: background-color 0.18s ease-out, transform 0.18s var(--glass-ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .glass-btn-filled {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-btn:active,
+  .glass-btn-filled:active {
+    transform: scale(0.94);
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .glass-btn[aria-pressed="true"],
+  .glass-segment > [aria-pressed="true"] {
+    background-color: rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Segmented control / tabs: a recessed tray with a raised selected lens */
+  .glass-segment:not(.liquid-glass) {
+    background-color: rgba(0, 0, 0, 0.28);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-segment > * {
+    transition: background-color 0.18s ease-out, color 0.18s ease-out, transform 0.18s var(--glass-ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .glass-segment > *:active {
+    transform: scale(0.96);
+  }
+
+  @media (hover: hover) {
+    .glass-btn:hover {
+      background-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .glass-btn-filled:hover {
+      background-color: rgba(255, 255, 255, 0.16);
+    }
+  }
+
+  /* Panels materialise from the control that opened them */
+  .glass-pop {
+    transform-origin: top right;
+    animation: glass-pop 0.22s var(--glass-ease);
+  }
+}
+
+@keyframes glass-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.75);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgba(96, 165, 250, 0.35);
+  }
+}
+
+/* Opaque fallbacks: no backdrop-filter support, or the user asked for less
+   transparency. Also skips the blur cost entirely. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .liquid-glass {
+    background-color: rgba(var(--glass-tint), 0.96);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .liquid-glass {
+    background-color: rgb(var(--glass-tint));
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .liquid-glass,
+  .glass-solid {
+    background-color: rgb(12, 12, 16);
+    border-color: rgba(255, 255, 255, 0.5);
+    backdrop-filter: none;
+  }
 }
 
 /* ─── Override Leaflet popup for glassmorphism ─── */
 .leaflet-popup-content-wrapper {
   background: rgba(17, 24, 39, 0.8) !important;
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 0.75rem !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
@@ -97,7 +218,7 @@ body {
 
 .leaflet-popup-content {
   margin: 10px 14px !important;
-  font-family: 'Rubik', sans-serif !important;
+  font-family: inherit !important;
 }
 
 .leaflet-popup-tip {
@@ -118,6 +239,11 @@ body {
 }
 
 /* ─── Scrollbar styling ─── */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 3px;
 }
@@ -135,7 +261,6 @@ body {
 .alert-tooltip {
   background: rgba(17, 24, 39, 0.85) !important;
   backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 0.5rem !important;
   color: white !important;
@@ -200,28 +325,6 @@ body {
   animation: slide-in 0.3s ease-out;
 }
 
-/* ─── About panel ─── */
-.about-shimmer {
-  background: linear-gradient(110deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.04) 40%,
-      rgba(255, 255, 255, 0.08) 50%,
-      rgba(255, 255, 255, 0.04) 60%,
-      rgba(255, 255, 255, 0) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-
-  100% {
-    background-position: -200% 0;
-  }
-}
-
 /* ─── Toast Notification Entrance ─── */
 @keyframes slide-up-toast {
   from {
@@ -278,7 +381,7 @@ body {
   .leaflet-interactive.alert-polygon-double,
   .leaflet-interactive.alert-polygon-new,
   .status-dot-pulse,
-  .about-shimmer,
+  .glass-pop,
   .toast-enter,
   .alert-item-enter,
   .timeline-bar-enter,
@@ -298,7 +401,7 @@ body {
 }
 
 .city-label {
-  font-family: 'Rubik', system-ui, sans-serif;
+  font-family: var(--font-ui), system-ui, sans-serif;
   font-weight: 500;
   font-size: 12.5px;
   letter-spacing: 0.5px;

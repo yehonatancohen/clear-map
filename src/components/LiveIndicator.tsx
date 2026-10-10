@@ -13,7 +13,7 @@ export default function LiveIndicator({ mode }: LiveIndicatorProps) {
   if (mode === "history") {
     return (
       <div
-        className="absolute top-3 left-3 z-[1000] liquid-glass rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 glass-overlay border-blue-500/30"
+        className="absolute top-3 left-3 z-[1000] liquid-glass rounded-full px-3 py-2 flex items-center gap-1.5 glass-overlay"
         title="מציג היסטוריית אירועים"
       >
         <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
@@ -26,7 +26,7 @@ export default function LiveIndicator({ mode }: LiveIndicatorProps) {
 
   return (
     <div
-      className="absolute top-3 left-3 z-[1000] liquid-glass rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 glass-overlay"
+      className="absolute top-3 left-3 z-[1000] liquid-glass rounded-full px-3 py-2 flex items-center gap-1.5 glass-overlay"
       title={isConnected ? "מחובר בזמן אמת" : "אין חיבור"}
     >
       <span

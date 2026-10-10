@@ -29,7 +29,7 @@ export function ToastContainer({ toasts }: ToastContainerProps) {
         return (
           <div
             key={t.toastId}
-            className={`toast-enter flex items-center gap-3 px-4 py-2.5 rounded-xl liquid-glass border ${config.bg} shadow-xl pointer-events-auto`}
+            className={`toast-enter flex items-center gap-3 px-4 py-2.5 rounded-full glass-solid ${config.bg} pointer-events-auto`}
           >
             <span className={`h-2.5 w-2.5 rounded-full ${config.dot} status-dot-pulse`} />
             <div className="flex flex-col text-right">

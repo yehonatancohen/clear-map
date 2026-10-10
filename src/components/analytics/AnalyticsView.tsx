@@ -64,7 +64,7 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="liquid-glass rounded-2xl p-5 flex flex-col gap-1">
+    <div className="liquid-glass-subtle rounded-2xl p-5 flex flex-col gap-1">
       <span className="text-xs text-white/40 font-medium">{label}</span>
       <span className="text-2xl font-bold text-white tabular-nums">{value.toLocaleString()}</span>
       {sub && <span className="text-[11px] text-white/30">{sub}</span>}
@@ -84,7 +84,7 @@ function Section({
   className?: string;
 }) {
   return (
-    <div className={`liquid-glass rounded-2xl p-5 ${className}`}>
+    <div className={`liquid-glass-subtle rounded-2xl p-5 ${className}`}>
       <h2 className="text-sm font-bold text-white/70 mb-4">{title}</h2>
       {children}
     </div>
@@ -291,7 +291,7 @@ export default function AnalyticsView() {
   return (
     <div className="min-h-[100dvh] bg-gray-950 text-white" dir="rtl">
       {/* ── Nav ── */}
-      <nav className="sticky top-0 z-50 liquid-glass border-b border-white/5">
+      <nav className="sticky top-0 z-50 liquid-glass border-x-0 border-t-0">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <span className="text-base font-bold tracking-tight">מפה שקופה</span>
           <Link
@@ -325,7 +325,7 @@ export default function AnalyticsView() {
         </div>
 
         {isEmpty ? (
-          <div className="liquid-glass rounded-2xl p-8 flex flex-col items-center justify-center text-center gap-3 mt-4">
+          <div className="liquid-glass-subtle rounded-2xl p-8 flex flex-col items-center justify-center text-center gap-3 mt-4">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-white/20">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />

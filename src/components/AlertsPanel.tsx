@@ -37,18 +37,19 @@ export function AlertsPanel({ alerts, counts, onClose }: AlertsPanelProps) {
 
   return (
     <div
-      className="intel-panel absolute top-14 sm:top-16 bottom-4 right-3 left-3 sm:left-auto z-[1000] flex sm:w-80 flex-col liquid-glass rounded-2xl overflow-hidden glass-overlay"
+      className="intel-panel absolute top-14 sm:top-16 bottom-4 right-3 left-3 sm:left-auto z-[1000] flex sm:w-80 flex-col liquid-glass glass-pop rounded-3xl overflow-hidden glass-overlay"
       dir="rtl"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2">
           <h2 className="text-[14px] font-bold text-white">עדכונים</h2>
-          <span className="text-[11px] text-white/40 font-medium">{alerts.length}</span>
+          <span className="text-[11px] text-white/60 font-medium tabular-nums">{alerts.length}</span>
         </div>
         <button
           onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-white/10 text-white/40"
+          aria-label="סגור"
+          className="glass-btn-filled h-8 w-8 rounded-full text-white/70"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -57,7 +58,7 @@ export function AlertsPanel({ alerts, counts, onClose }: AlertsPanelProps) {
       </div>
 
       {/* Summary chips */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-white/5 flex-wrap">
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-white/10 flex-wrap">
         {counts.alert    && <Chip dot="bg-[#FF2A2A]" color="text-[#FF2A2A]" label={`${counts.alert} טילים`} pulse />}
         {counts.uav      && <Chip dot="bg-[#E040FB]" color="text-[#E040FB]" label={`${counts.uav} כטב"מ`} pulse />}
         {counts.terrorist && <Chip dot="bg-[#FF0055]" color="text-[#FF0055]" label={`${counts.terrorist} מחבלים`} pulse />}
@@ -69,7 +70,7 @@ export function AlertsPanel({ alerts, counts, onClose }: AlertsPanelProps) {
         {alerts.length > 0 ? (
           sorted.map((alert) => <AlertItem key={alert.id} alert={alert} />)
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center p-6 opacity-20">
+          <div className="flex flex-col items-center justify-center h-full text-center p-6 opacity-50">
             <h3 className="text-white text-[14px] font-bold mb-1">אין התרעות פעילות</h3>
             <p className="text-white text-[12px]">כאן יופיעו עדכונים בזמן אמת</p>
           </div>
@@ -93,13 +94,13 @@ function AlertItem({ alert }: { alert: ActiveAlert }) {
   const isActive = alert.status === "alert" || alert.status === "pre_alert" || alert.status === "uav" || alert.status === "terrorist";
 
   return (
-    <div className={`alert-item-enter liquid-glass-subtle rounded-xl p-3 border-r-2 ${config.bg}`}>
+    <div className={`alert-item-enter liquid-glass-subtle rounded-xl p-3 ${config.bg}`}>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <span className={`inline-block h-2 w-2 rounded-full ${config.dot} ${isActive ? "status-dot-pulse" : ""}`} />
           <span className={`text-[11px] font-medium ${config.color}`}>{config.label}</span>
         </div>
-        <span className="text-[10px] text-white/40 font-medium tabular-nums">
+        <span className="text-[10px] text-white/60 font-medium tabular-nums">
           {formatRelativeTime(alert.timestamp)}
         </span>
       </div>

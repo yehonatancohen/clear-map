@@ -288,16 +288,16 @@ export default function IntelPanel({
       )}
 
       {/* Disclaimer */}
-      {showDisclaimer && (
+      {showDisclaimer && !showAbout && !showLegend && !showTelegramInfo && !isOpen && (
         <div className="absolute top-16 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[480px] z-[2000] pointer-events-none" dir="rtl">
-          <div className="liquid-glass border border-red-500/25 rounded-xl px-3 py-2 shadow-lg shadow-red-500/10 pointer-events-auto flex items-center gap-2">
+          <div className="liquid-glass border-red-500/35 rounded-2xl px-3 py-2 pointer-events-auto flex items-center gap-2">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-400 flex-shrink-0">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
             <p className="flex-1 text-[11px] text-white/70 leading-snug text-right">
               <span className="font-bold text-white/90">אזהרה:</span> המערכת אינה תחליף לצופרי פיקוד העורף. המידע עשוי להיות שגוי. השימוש באחריות המשתמש.
             </p>
-            <button onClick={() => setShowDisclaimer(false)} className="flex-shrink-0 text-white/30 hover:text-white transition-colors p-1 rounded active:scale-95">
+            <button onClick={() => setShowDisclaimer(false)} aria-label="סגור" className="glass-btn h-7 w-7 rounded-full flex-shrink-0 text-white/60">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
               </svg>

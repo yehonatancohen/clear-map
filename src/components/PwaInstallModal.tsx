@@ -10,7 +10,7 @@ interface PwaInstallModalProps {
 
 export function PwaInstallModal({ isIosPwa, permission, requestPermission, onInstall, onClose }: PwaInstallModalProps) {
   return (
-    <div className="fixed inset-0 z-[3000] flex items-end sm:items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[3000] flex items-end sm:items-center justify-center p-4 sm:p-6 bg-black/70 animate-in fade-in duration-300">
       <div className="bg-zinc-950 border border-white/10 w-full max-w-[420px] rounded-[32px] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-500" dir="rtl">
         <div className="p-6 pt-8">
           <div className="flex justify-between items-start mb-6">

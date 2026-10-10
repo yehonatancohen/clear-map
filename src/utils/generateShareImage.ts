@@ -2,6 +2,9 @@ import { ActiveAlert } from "@/types";
 import { getMapInstance } from "@/lib/mapRef";
 import { CITY_RANKINGS, getLabelHierarchy } from "@/components/CityLabels";
 
+// Canvas text uses the same family the page resolved (next/font hashes the name)
+const uiFont = () => getComputedStyle(document.body).fontFamily || "sans-serif";
+
 const STATUS_META: Record<string, { emoji: string; label: string; color: string; fill: string; glow: string; dot: string }> = {
   pre_alert: { emoji: "\uD83D\uDFE0", label: "התרעות מוקדמות", color: "rgba(255,106,0,0.9)", fill: "rgba(255,106,0,0.25)", glow: "rgba(255,106,0,0.7)", dot: "#FF6A00" },
   alert: { emoji: "\uD83D\uDD34", label: "ירי רקטות וטילים", color: "rgba(255,42,42,0.9)", fill: "rgba(255,42,42,0.35)", glow: "rgba(239,68,68,0.8)", dot: "#FF2A2A" },
@@ -180,7 +183,7 @@ async function captureCurrentMapView(
 
         const isLarge = zoom < 10 && city.tier <= 1;
         const fontSize = isLarge ? 14 : 12;
-        ctx.font = `700 ${fontSize}px Rubik, sans-serif`;
+        ctx.font = `700 ${fontSize}px ${uiFont()}`;
 
         const text = city.rawName.includes(" - ") && zoom < 11.5 ? city.parentName : city.rawName;
         const textWidth = ctx.measureText(text).width + 12;
@@ -249,7 +252,7 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
     const logoW = logo.width * (logoH / logo.height);
     ctx.drawImage(logo, SIZE - logoW - 30, 24, logoW, logoH);
   } catch {
-    ctx.font = "bold 42px Rubik, sans-serif";
+    ctx.font = `bold 42px ${uiFont()}`;
     ctx.fillStyle = textColor;
     ctx.textAlign = "right";
     ctx.direction = "rtl";
@@ -276,7 +279,7 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
     let y = legendY;
     ctx.direction = "rtl";
     ctx.textAlign = "right";
-    ctx.font = "bold 32px Rubik, sans-serif";
+    ctx.font = `bold 32px ${uiFont()}`;
     ctx.fillStyle = textColor;
     ctx.fillText("מקרא", SIZE - 44, y);
     y += 50;
@@ -284,7 +287,7 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
     const counts: Record<string, number> = {};
     for (const a of alerts) counts[a.status] = (counts[a.status] || 0) + 1;
 
-    ctx.font = "26px Rubik, sans-serif";
+    ctx.font = `26px ${uiFont()}`;
     for (const status of legendEntries) {
       const meta = STATUS_META[status];
       if (!meta) continue;
@@ -302,7 +305,7 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
   // URL watermark badge — bottom left, styled like a pill button
   {
     const urlText = "clearmap.co.il";
-    ctx.font = "bold 26px Rubik, sans-serif";
+    ctx.font = `bold 26px ${uiFont()}`;
     const textW = ctx.measureText(urlText).width;
     const padX = 20, padY = 12;
     const badgeW = textW + padX * 2;
@@ -334,7 +337,7 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
     ctx.direction = "ltr";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.font = "bold 26px Rubik, sans-serif";
+    ctx.font = `bold 26px ${uiFont()}`;
     ctx.shadowColor = "rgba(0,0,0,0.5)";
     ctx.shadowBlur = 4;
     ctx.fillStyle = isDark ? "rgba(255,255,255,0.85)" : "rgba(10,10,20,0.75)";
