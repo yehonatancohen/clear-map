@@ -21,12 +21,23 @@ import { useSunCycle } from "@/hooks/useSunCycle";
 import { ActiveAlert, UavTrack } from "@/types";
 import type { MapMode } from "./TimelineModeToggle";
 import TimelinePolygons from "./TimelinePolygons";
-import HistoryPanel from "./HistoryPanel";
+import HistoryPanel, { type HistoryView } from "./HistoryPanel";
+import SalvoList from "./SalvoList";
+import SalvoReplayBar from "./SalvoReplayBar";
+import { useHistorySalvos } from "@/hooks/useSalvos";
+import { useSalvoReplay } from "@/hooks/useSalvoReplay";
+import { salvoShareSummary, salvoShareText, salvoStateAt, type Salvo } from "@/lib/salvos";
+import { generateShareImage, shareOrDownload } from "@/utils/generateShareImage";
+import { getMapInstance } from "@/lib/mapRef";
 import { useHistoryAlerts, SortedAlert } from "@/hooks/useTimelineHistory";
 import CityLabels from "./CityLabels";
 import { SupportBanner } from "./SupportBanner";
 import ConnectionBanner from "./ConnectionBanner";
 import { THEMES, MAX_TILE_ZOOM, TileCrossfadeStyle, getMergedPolygonStyle } from "./mapStyle";
+import dynamic from "next/dynamic";
+
+// Dev-server test controls; compiled out of production builds.
+const DevPanel = process.env.NODE_ENV === "development" ? dynamic(() => import("./DevPanel"), { ssr: false }) : () => null;
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
@@ -254,6 +265,66 @@ function haversineKm(a: [number, number], b: [number, number]): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/** A salvo as history rows: whole salvo (t = null) or as it stood at time t. */
+function salvoRows(s: Salvo, t: number | null): SortedAlert[] {
+  const state = t === null
+    ? new Map<string, string>([...s.warnedCities.map((c) => [c, "pre_alert"] as const), ...s.alertCities.map((c) => [c, "alert"] as const)])
+    : salvoStateAt(s, t);
+  return [...state].map(([city, status]) => ({
+    data: city,
+    date: "",
+    time: "",
+    alertDate: "",
+    category: status === "alert" ? 1 : 10,
+    category_desc: "",
+    matrix_id: 0,
+    rid: 0,
+    _ts: s.firstAlertTs,
+    status,
+  }));
+}
+
+/**
+ * The share image is a centered square of the map, while on a phone the history
+ * panel pushes the fit into the top half. Re-fit for the square (leaving room for
+ * the logo and the summary block), wait for the tiles, capture, then put the view back.
+ */
+async function withShareView<T>(cities: string[], polygons: PolygonLookup | null, capture: () => Promise<T>): Promise<T> {
+  const map = getMapInstance();
+  const container = document.querySelector("#map-root .leaflet-container") as HTMLElement | null;
+  const coords = cities.flatMap((c) => polygons?.[c]?.polygon ?? []);
+  if (!map || !container || coords.length === 0) return capture();
+
+  const prevCenter = map.getCenter();
+  const prevZoom = map.getZoom();
+  const { width: w, height: h } = container.getBoundingClientRect();
+  const side = Math.min(w, h);
+  const padX = (w - side) / 2 + side * 0.06;
+  const padY = (h - side) / 2;
+  map.fitBounds(L.latLngBounds(coords.map(([lat, lng]) => L.latLng(lat, lng))), {
+    paddingTopLeft: [padX, padY + side * 0.16],
+    paddingBottomRight: [padX, padY + side * 0.36],
+    maxZoom: 12,
+    animate: false,
+  });
+  try {
+    await waitForTiles(container);
+    return await capture();
+  } finally {
+    map.setView(prevCenter, prevZoom, { animate: false });
+  }
+}
+
+async function waitForTiles(container: HTMLElement, timeoutMs = 3000) {
+  const start = Date.now();
+  await new Promise((r) => setTimeout(r, 250)); // let Leaflet add the new tiles
+  while (Date.now() - start < timeoutMs) {
+    const tiles = [...container.querySelectorAll<HTMLImageElement>(".leaflet-tile")];
+    if (tiles.every((t) => t.complete)) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean }) {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
@@ -306,7 +377,50 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
     : settings.theme === "google" ? "light" // Treat google as a light theme for UI
     : settings.theme; // light or dark
 
-  const { batches, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
+  // Stable identity: IntelPanel copies it into state in an effect, so a fresh array on
+  // every render meant an extra update per render (a loop warning while scrubbing a replay).
+  const cityList = useMemo(() => (polygons ? Object.keys(polygons).sort() : []), [polygons]);
+
+  const { batches, alerts: historyRows, loading, hasMore, loadMore } = useHistoryAlerts(mode === "history");
+  const [historyView, setHistoryView] = useState<HistoryView>("salvos");
+  const salvos = useHistorySalvos(historyRows, mode === "history" && historyView === "salvos");
+  const [selectedSalvo, setSelectedSalvo] = useState<Salvo | null>(null);
+  const replay = useSalvoReplay(selectedSalvo);
+  const [sharingSalvo, setSharingSalvo] = useState(false);
+
+  const selectSalvo = useCallback((s: Salvo | null) => {
+    setSelectedSalvo(s);
+    setSelectedBatchId(s?.id ?? null);
+    setSelectedBatchAlerts(s ? salvoRows(s, null) : []);
+  }, []);
+
+  // Replay draws the salvo as it stood at the current frame; the fit stays on the whole salvo.
+  // Keyed on how many events have happened, not the clock, so dragging only re-unions
+  // polygons when the picture actually changes.
+  const replayActive = replay.t !== null;
+  const replayRows = useMemo(() => {
+    if (!selectedSalvo || !replayActive) return null;
+    return replay.shown === 0 ? [] : salvoRows(selectedSalvo, selectedSalvo.events[replay.shown - 1].ts);
+  }, [selectedSalvo, replayActive, replay.shown]);
+
+  const shareSalvo = useCallback(async (s: Salvo) => {
+    setSharingSalvo(true);
+    try {
+      const rows = salvoRows(s, null);
+      const blob = await withShareView(rows.map((r) => r.data), polygons, () =>
+        generateShareImage(
+          rows.map((r) => ({ id: r.data, city_name: r.data, city_name_he: r.data, timestamp: r._ts, is_double: false, status: r.status ?? "alert" })),
+          effectiveTheme,
+          salvoShareSummary(s),
+        ),
+      );
+      await shareOrDownload(blob, salvoShareText(s), "clearmap-salvo.png");
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") console.error("Salvo share failed:", err);
+    } finally {
+      setSharingSalvo(false);
+    }
+  }, [polygons, effectiveTheme]);
 
   const historyMappedAlerts = useMemo((): ActiveAlert[] => {
     if (mode !== "history") return [];
@@ -325,7 +439,8 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   useEffect(() => {
     setSelectedBatchId(null);
     setSelectedBatchAlerts([]);
-  }, [mode]);
+    setSelectedSalvo(null);
+  }, [mode, historyView]);
 
   const [newAlertIds, setNewAlertIds] = useState<Set<string>>(new Set());
   const prevAlertIdsRef = useRef<Set<string>>(new Set());
@@ -382,7 +497,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           onThemeChange={setTheme}
           mode={mode}
           onModeChange={setMode}
-          cityList={polygons ? Object.keys(polygons).sort() : []}
+          cityList={cityList}
           historyAlerts={historyMappedAlerts}
           polygons={polygons}
         />
@@ -391,6 +506,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
       {/* No donation ask mid-salvo; it would also cover the status bar and shelter card */}
       {!isBroadcast && alerts.length === 0 && <SupportBanner />}
       {!isBroadcast && mode === "live" && <ConnectionBanner />}
+      {!isBroadcast && <DevPanel />}
       <MapContainer
         center={initialCenter}
         zoom={initialZoom}
@@ -460,7 +576,7 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
         {mode === "history" && selectedBatchAlerts.length > 0 && (
           <>
             <AlertFitter alerts={selectedBatchAlerts} polygons={polygons} isHistory={true} isBroadcast={isBroadcast} />
-            <TimelinePolygons alerts={selectedBatchAlerts} polygons={polygons} />
+            <TimelinePolygons alerts={replayRows ?? selectedBatchAlerts} polygons={polygons} />
             {showEllipse && <ImpactEllipseLayer ellipses={historyImpactEllipses} />}
           </>
         )}
@@ -481,8 +597,12 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           </span>
         </div>
       )}
+      {!isBroadcast && mode === "history" && selectedSalvo && replay.t !== null && (
+        <SalvoReplayBar salvo={selectedSalvo} replay={replay} />
+      )}
       {!isBroadcast && mode === "history" && (
         <HistoryPanel
+          forceCollapsed={!!selectedSalvo && replay.t !== null}
           batches={batches}
           loading={loading}
           hasMore={hasMore}
@@ -497,6 +617,20 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
             setSelectedBatchId(null);
             setSelectedBatchAlerts([]);
           }}
+          view={historyView}
+          onViewChange={setHistoryView}
+          salvoCount={salvos.length}
+          salvoList={
+            <SalvoList
+              salvos={salvos}
+              loading={loading}
+              selectedId={selectedSalvo?.id ?? null}
+              onSelect={selectSalvo}
+              replay={replay}
+              onShare={shareSalvo}
+              sharing={sharingSalvo}
+            />
+          }
         />
       )}
 

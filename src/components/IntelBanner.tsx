@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ActiveAlert } from "@/types";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
-import { generateShareImage, buildShareText } from "@/utils/generateShareImage";
+import { generateShareImage, buildShareText, shareOrDownload } from "@/utils/generateShareImage";
 import type { MapMode } from "./TimelineModeToggle";
 
 import { TopBar } from "./TopBar";
@@ -19,6 +19,8 @@ import { MyPeoplePanel } from "./MyPeoplePanel";
 import { ShelterCard } from "./ShelterCard";
 import type { PolygonLookup } from "@/hooks/usePolygons";
 import { useMyZones, useZoneStatusLookup, ZONE_META } from "@/hooks/useZoneStatus";
+import { useLiveClears } from "@/hooks/useLiveState";
+import { useLiveSalvos } from "@/hooks/useSalvos";
 
 interface IntelPanelProps {
   alerts: ActiveAlert[];
@@ -126,19 +128,7 @@ export default function IntelPanel({
       // In history mode, share whatever batch the user has open instead of the live alerts.
       const shareAlerts = mode === "history" ? (historyAlerts ?? []) : alerts;
       const blob = await generateShareImage(shareAlerts, theme);
-      const file = new File([blob], "clearmap-status.png", { type: "image/png" });
-      const text = buildShareText(shareAlerts);
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], text });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "clearmap-status.png";
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-        try { await navigator.clipboard.writeText(text); } catch { /* clipboard not available */ }
-      }
+      await shareOrDownload(blob, buildShareText(shareAlerts));
       // show success toast
       const successAlert: ActiveAlert & { toastId: number } = {
         id: "share_ok",
@@ -236,6 +226,10 @@ export default function IntelPanel({
     }
   }, [trollPlaying]);
 
+  // ── Salvos (estimated source of what's on the map) ────────────────────────
+  const liveClears = useLiveClears();
+  const liveSalvos = useLiveSalvos(alerts, liveClears);
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   const counts = alerts.reduce((acc, a) => { acc[a.status] = (acc[a.status] || 0) + 1; return acc; }, {} as Record<string, number>);
   const hasAlerts = alerts.length > 0;
@@ -315,7 +309,7 @@ export default function IntelPanel({
       <ToastContainer toasts={toasts} />
 
       {!isOpen && hasAlerts && mode === "live" && (
-        <StatusBar counts={counts} onClick={() => { closeAll(); setIsOpen(true); }} />
+        <StatusBar counts={counts} salvos={liveSalvos} onClick={() => { closeAll(); setIsOpen(true); }} />
       )}
 
       {!isOpen && !showPeople && mode === "live" && (

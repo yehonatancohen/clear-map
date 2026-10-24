@@ -42,6 +42,16 @@ export function MyPeoplePanel({ cityList, statusOf, locationZone, onClose }: MyP
     setZoneQuery("");
   }
 
+  // Stops using the location everywhere (map dot, "me" row, shelter card, location
+  // notifications). Same fallback as the settings toggle so notifications never go silent.
+  function locationOff() {
+    updateSettings({
+      showMyLocation: false,
+      currentLocation: false,
+      ...(settings.currentLocation && settings.selectedCities.length === 0 ? { allIsrael: true } : {}),
+    });
+  }
+
   function remove(i: number) {
     updateSettings({ people: people.filter((_, j) => j !== i) });
   }
@@ -68,10 +78,15 @@ export function MyPeoplePanel({ cityList, statusOf, locationZone, onClose }: MyP
       <div className="space-y-2 overflow-y-auto scrollbar-thin flex-1 pb-1">
         {/* Me */}
         {locationZone ? (
-          <PersonRow name="אני" zone={locationZone} status={statusOf(locationZone)} tag="מיקום נוכחי" />
+          <PersonRow name="אני" zone={locationZone} status={statusOf(locationZone)} tag="מיקום נוכחי" onRemove={locationOff} removeLabel="כיבוי המיקום שלי" />
         ) : settings.showMyLocation || settings.currentLocation ? (
-          <div className="liquid-glass-subtle rounded-xl p-3 text-right text-[12px] text-white/50">
-            {userCoords ? "המיקום שלך מחוץ לאזורי ההתרעה" : "ממתין למיקום… יש לאשר גישה למיקום בדפדפן"}
+          <div className="liquid-glass-subtle rounded-xl p-3 flex items-center gap-3 text-[12px] text-white/50">
+            <span className="flex-1 text-right">
+              {userCoords ? "המיקום שלך מחוץ לאזורי ההתרעה" : "ממתין למיקום… יש לאשר גישה למיקום בדפדפן"}
+            </span>
+            <button onClick={locationOff} className="text-blue-300 font-bold hover:text-blue-200 flex-shrink-0">
+              כיבוי מיקום
+            </button>
           </div>
         ) : (
           <button
@@ -151,13 +166,14 @@ export function MyPeoplePanel({ cityList, statusOf, locationZone, onClose }: MyP
 }
 
 function PersonRow({
-  name, zone, status, tag, onRemove,
+  name, zone, status, tag, onRemove, removeLabel,
 }: {
   name: string;
   zone: string;
   status: ZoneStatus;
   tag?: string;
   onRemove?: () => void;
+  removeLabel?: string;
 }) {
   const meta = ZONE_META[status.state];
   const urgent = meta.severity === 0;
@@ -188,7 +204,7 @@ function PersonRow({
         </div>
       </div>
       {onRemove && (
-        <button onClick={onRemove} aria-label={`הסרת ${name}`} className="text-white/30 hover:text-white/80 p-1 flex-shrink-0">
+        <button onClick={onRemove} aria-label={removeLabel ?? `הסרת ${name}`} title={removeLabel} className="text-white/30 hover:text-white/80 p-1 flex-shrink-0">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
             <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
           </svg>

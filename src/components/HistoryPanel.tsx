@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { SortedAlert, AlertBatch } from "@/hooks/useTimelineHistory";
 
 interface HistoryPanelProps {
@@ -11,7 +11,16 @@ interface HistoryPanelProps {
   selectedBatchId: string | null;
   onSelectBatch: (batchId: string | null, alerts: SortedAlert[]) => void;
   onClose: () => void;
+  /** "salvos": rocket fire grouped into salvos (rendered by the caller); "all": every alert batch. */
+  view: HistoryView;
+  onViewChange: (view: HistoryView) => void;
+  salvoCount: number;
+  salvoList: ReactNode;
+  /** Phones: keep the sheet down (e.g. while a replay plays on the map). */
+  forceCollapsed?: boolean;
 }
+
+export type HistoryView = "salvos" | "all";
 
 const CATEGORY_CONFIG: Record<string | number, { label: string; color: string; dot: string }> = {
   1: { label: "רקטות וטילים", color: "text-[#FF2A2A]", dot: "bg-[#FF2A2A]" },
@@ -33,6 +42,9 @@ function formatDate(ts: number): string {
 
 const MAX_CITIES_SHOWN = 12;
 
+/** Matches Tailwind's `sm` breakpoint, below which the panel is a bottom sheet. */
+const isPhone = () => typeof window !== "undefined" && window.innerWidth < 640;
+
 function groupBatchesByDate(batches: AlertBatch[]): Map<string, AlertBatch[]> {
   const groups = new Map<string, AlertBatch[]>();
   for (const b of batches) {
@@ -52,6 +64,11 @@ export default function HistoryPanel({
   selectedBatchId,
   onSelectBatch,
   onClose,
+  view,
+  onViewChange,
+  salvoCount,
+  salvoList,
+  forceCollapsed = false,
 }: HistoryPanelProps) {
   const grouped = groupBatchesByDate(batches);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -95,7 +112,7 @@ export default function HistoryPanel({
   return (
     <div
       className="absolute bottom-0 sm:top-16 sm:bottom-4 right-0 sm:right-3 left-0 sm:left-auto z-[1000] flex sm:w-80 flex-col h-[55vh] sm:h-auto liquid-glass rounded-t-3xl sm:rounded-3xl overflow-hidden glass-overlay transition-transform duration-300 ease-out sm:transform-none"
-      style={{ transform: isCollapsed ? 'translateY(calc(55vh - 80px))' : 'translateY(0)' }}
+      style={{ transform: isCollapsed || (forceCollapsed && isPhone()) ? 'translateY(calc(55vh - 80px))' : 'translateY(0)' }}
       dir="rtl"
     >
       {/* Drag handle + Header */}
@@ -116,7 +133,7 @@ export default function HistoryPanel({
             <h2 className="text-[16px] font-bold text-white text-right">היסטוריית אירועים</h2>
           </div>
           <span className="text-[11px] text-white/60 font-medium">
-            מציג {batches.length} אירועים אחרונים
+            {view === "salvos" ? `${salvoCount} מטחים ושיגורים` : `מציג ${batches.length} אירועים אחרונים`}
           </span>
         </div>
         <div className="flex gap-2">
@@ -145,7 +162,32 @@ export default function HistoryPanel({
         </div>
       </div>
 
+      <div className="px-3 pt-3">
+        <div className="liquid-glass glass-segment rounded-full flex gap-0.5 p-1" role="tablist">
+          {([["salvos", "מטחים"], ["all", "כל ההתרעות"]] as const).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={view === id}
+              onClick={() => onViewChange(id)}
+              className={`flex-1 rounded-full px-3 py-1.5 text-[12px] font-bold ${
+                view === id ? "text-blue-300 bg-white/10" : "text-white/60 hover:text-white/80"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {view === "salvos" && (
+        <div className="scrollbar-thin flex-1 overflow-y-auto px-3 py-3 space-y-5">
+          {salvoList}
+        </div>
+      )}
+
       {/* Batched alert list */}
+      {view === "all" && (
       <div className="scrollbar-thin flex-1 overflow-y-auto px-3 py-3 space-y-5">
         {batches.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center h-full text-center p-6 opacity-50">
@@ -235,6 +277,7 @@ export default function HistoryPanel({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

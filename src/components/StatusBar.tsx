@@ -1,8 +1,24 @@
 "use client";
 
+import { SOURCE_META, type Salvo } from "@/lib/salvos";
+
 interface StatusBarProps {
   counts: Record<string, number>;
   onClick: () => void;
+  /** Salvos currently on the map; their estimated source is shown above the counts. */
+  salvos?: Salvo[];
+}
+
+function salvoLine(salvos: Salvo[]): string | null {
+  if (salvos.length === 0) return null;
+  // Biggest salvo first.
+  const sources = [...new Set([...salvos].sort((a, b) => b.alertCities.length - a.alertCities.length).map((s) => s.source))];
+  const labels = sources.map((src) => {
+    const meta = SOURCE_META[src];
+    return meta.hint ? `${meta.label} (${meta.hint})` : meta.label;
+  });
+  const since = new Date(Math.min(...salvos.map((s) => s.startTs))).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  return `${labels.join(" + ")} · מ־${since}`;
 }
 
 const CHIPS: {
@@ -19,9 +35,10 @@ const CHIPS: {
   { key: "after_alert", dot: "#FF2A2A", color: "#aaa",    label: 'בממ"ד'                       },
 ];
 
-export function StatusBar({ counts, onClick }: StatusBarProps) {
+export function StatusBar({ counts, onClick, salvos = [] }: StatusBarProps) {
   const active = CHIPS.filter((c) => counts[c.key]);
   if (active.length === 0) return null;
+  const line = salvoLine(salvos);
 
   return (
     <button
@@ -29,6 +46,12 @@ export function StatusBar({ counts, onClick }: StatusBarProps) {
       dir="rtl"
       className="absolute bottom-4 right-3 left-3 z-[1000] glass-overlay liquid-glass flex items-center justify-between gap-3 rounded-[22px] px-4 py-2.5 transition-transform duration-200 ease-out active:scale-[0.985]"
     >
+      <div className="flex flex-col items-start gap-1 min-w-0">
+      {line && (
+        <span className="text-[11px] font-medium text-white/55 truncate max-w-full">
+          {line} <span className="text-white/35">· מקור משוער</span>
+        </span>
+      )}
       {/* Alert chips */}
       <div className="flex items-center gap-3 flex-wrap">
         {active.map((c) => (
@@ -43,6 +66,7 @@ export function StatusBar({ counts, onClick }: StatusBarProps) {
             <span className="text-[12px] font-medium text-white/60">{c.label}</span>
           </div>
         ))}
+      </div>
       </div>
 
       {/* Expand chevron */}

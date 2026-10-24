@@ -90,7 +90,21 @@ export function computeHealth(s: LiveSnapshot, now = Date.now()): LiveHealth {
 // ── lifecycle ────────────────────────────────────────────────────────────────
 
 function start() {
-  if (mode === "realtime" && !firebaseFailed) startFirebase();
+  if (process.env.NODE_ENV === "development") {
+    // Dev server: the DevPanel picks simulation, live Firebase, or /api/live polling.
+    void import("./devSim").then((sim) => {
+      if (listeners.size === 0) return;
+      const source = sim.getDevSource();
+      if (source === "sim") startSim(sim);
+      else startTransport(source === "poll");
+    });
+    return;
+  }
+  startTransport(false);
+}
+
+function startTransport(forcePoll: boolean) {
+  if (mode === "realtime" && !firebaseFailed && !forcePoll) startFirebase();
   else startPolling();
 
   const onVisibility = () => {
@@ -141,6 +155,25 @@ function startFirebase() {
     }),
   );
   scheduleFallback();
+}
+
+function startSim(sim: typeof import("./devSim")) {
+  const push = () => {
+    const s = sim.getSim();
+    emit({
+      alerts: s.alerts,
+      uavTracks: s.uavTracks,
+      clears: s.clears,
+      heartbeat: sim.simHeartbeat(s.health),
+      serverOffset: 0,
+      connected: true,
+      source: "firebase",
+    });
+  };
+  push();
+  // Re-emit so the fake heartbeat keeps ticking (alert objects keep their identity).
+  const id = setInterval(push, 3000);
+  stopFns.push(sim.subscribeSim(push), () => clearInterval(id));
 }
 
 function scheduleFallback() {

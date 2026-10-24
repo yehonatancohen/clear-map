@@ -76,14 +76,93 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Returns true if any ancestor up to (but not including) stopEl has opacity < threshold. */
-function hasInvisibleAncestor(el: Element, stopEl: Element, threshold = 0.05): boolean {
-  let cur: Element | null = el.parentElement;
-  while (cur && cur !== stopEl) {
-    if (parseFloat(window.getComputedStyle(cur).opacity ?? "1") < threshold) return true;
-    cur = cur.parentElement;
+/** Combined CSS opacity of el and its ancestors up to (not including) stopEl. */
+function effectiveOpacity(el: Element, stopEl: Element): number {
+  let opacity = 1;
+  for (let cur: Element | null = el; cur && cur !== stopEl; cur = cur.parentElement) {
+    opacity *= parseFloat(window.getComputedStyle(cur).opacity || "1");
   }
-  return false;
+  return opacity;
+}
+
+let filterSupport: boolean | null = null;
+
+/** ctx.filter exists in some browsers (older Safari) without doing anything; test it for real. */
+function canvasFilterWorks(): boolean {
+  if (filterSupport !== null) return filterSupport;
+  try {
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    const x = c.getContext("2d")!;
+    x.filter = "invert(1)";
+    x.fillStyle = "#fff";
+    x.fillRect(0, 0, 1, 1);
+    filterSupport = x.getImageData(0, 0, 1, 1).data[0] < 128;
+  } catch {
+    filterSupport = false;
+  }
+  return filterSupport;
+}
+
+type Matrix = number[]; // 3x3 row-major colour matrix + 3 offsets (0–1 scale)
+
+/** Colour matrices for the CSS filter functions the map uses (Filter Effects spec). */
+function filterMatrix(fn: string, v: number): Matrix | null {
+  const id = (s: number, o = 0): Matrix => [s, 0, 0, 0, s, 0, 0, 0, s, o, o, o];
+  const sat = (s: number): Matrix => [
+    0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s,
+    0.213 - 0.213 * s, 0.715 + 0.285 * s, 0.072 - 0.072 * s,
+    0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s,
+    0, 0, 0,
+  ];
+  switch (fn) {
+    case "invert": return id(1 - 2 * v, v);
+    case "brightness": return id(v);
+    case "contrast": return id(v, 0.5 - 0.5 * v);
+    case "saturate": return sat(v);
+    case "grayscale": return sat(1 - Math.min(v, 1));
+    case "hue-rotate": {
+      const a = (v * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a);
+      return [
+        0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928,
+        0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.14, 0.072 - c * 0.072 - s * 0.283,
+        0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072,
+        0, 0, 0,
+      ];
+    }
+    default: return null;
+  }
+}
+
+/** Fallback for browsers without a working ctx.filter: apply the CSS filter chain to the pixels. */
+function applyCssFilter(octx: CanvasRenderingContext2D, filter: string) {
+  const steps: Matrix[] = [];
+  for (const m of filter.matchAll(/([a-z-]+)\(([-\d.]+)(%|deg)?\)/g)) {
+    const v = parseFloat(m[2]) / (m[3] === "%" ? 100 : 1);
+    const mat = filterMatrix(m[1], v);
+    if (mat) steps.push(mat);
+  }
+  if (steps.length === 0) return;
+  let img: ImageData;
+  try {
+    img = octx.getImageData(0, 0, octx.canvas.width, octx.canvas.height);
+  } catch {
+    return; // tainted canvas: leave unfiltered
+  }
+  const d = img.data;
+  const clamp = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    let r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+    for (const m of steps) {
+      const nr = clamp(m[0] * r + m[1] * g + m[2] * b + m[9]);
+      const ng = clamp(m[3] * r + m[4] * g + m[5] * b + m[10]);
+      const nb = clamp(m[6] * r + m[7] * g + m[8] * b + m[11]);
+      r = nr; g = ng; b = nb;
+    }
+    d[i] = r * 255; d[i + 1] = g * 255; d[i + 2] = b * 255;
+  }
+  octx.putImageData(img, 0, 0);
 }
 
 async function captureCurrentMapView(
@@ -109,16 +188,40 @@ async function captureCurrentMapView(
   ctx.fillStyle = theme === "dark" ? "#030712" : "#e8eaf0";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
-  // Draw tiles — skip tiles from invisible layers (e.g. the light tile layer
-  // when in dark mode has CSS opacity:0 on its pane, but drawImage ignores that).
-  const tiles = container.querySelectorAll<HTMLImageElement>(".leaflet-tile");
-  for (const tile of tiles) {
+  // Draw tiles layer by layer, as the user sees them. drawImage ignores CSS:
+  // the dark theme is light tiles under a CSS filter, and auto mode blends the
+  // two layers by opacity, so both have to be re-applied here.
+  const layers = new Map<Element, HTMLImageElement[]>();
+  for (const tile of container.querySelectorAll<HTMLImageElement>(".leaflet-tile")) {
     if (!tile.complete || !tile.naturalWidth) continue;
-    if (hasInvisibleAncestor(tile, container)) continue;
-    const tileRect = tile.getBoundingClientRect();
-    try {
-      ctx.drawImage(tile, tileRect.left - rect.left, tileRect.top - rect.top, tileRect.width, tileRect.height);
-    } catch { /* tainted */ }
+    const layer = tile.closest(".leaflet-layer") ?? tile.parentElement!;
+    if (!layers.has(layer)) layers.set(layer, []);
+    layers.get(layer)!.push(tile);
+  }
+  for (const [layer, layerTiles] of layers) {
+    const opacity = effectiveOpacity(layer, container);
+    if (opacity < 0.01) continue;
+    const filter = window.getComputedStyle(layer).filter;
+    const off = document.createElement("canvas");
+    off.width = canvas.width;
+    off.height = canvas.height;
+    const octx = off.getContext("2d")!;
+    octx.scale(dpr, dpr);
+    for (const tile of layerTiles) {
+      const tileRect = tile.getBoundingClientRect();
+      try {
+        octx.drawImage(tile, tileRect.left - rect.left, tileRect.top - rect.top, tileRect.width, tileRect.height);
+      } catch { /* tainted */ }
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = opacity;
+    if (filter && filter !== "none") {
+      if (canvasFilterWorks()) ctx.filter = filter;
+      else applyCssFilter(octx, filter);
+    }
+    ctx.drawImage(off, 0, 0);
+    ctx.restore();
   }
 
   if (map && polygonsData) {
@@ -216,7 +319,39 @@ async function captureCurrentMapView(
   return canvas;
 }
 
-export async function generateShareImage(alerts: ActiveAlert[], theme: "light" | "dark" = "dark"): Promise<Blob> {
+/** Replaces the legend with a headline block (used for a salvo's summary card). */
+export interface ShareSummary {
+  title: string;
+  subtitle?: string;
+  lines: string[];
+  /** Dot color next to the title. */
+  accent: string;
+}
+
+/** Native share sheet when the browser can share files, otherwise download + copy text. */
+export async function shareOrDownload(blob: Blob, text: string, filename = "clearmap-status.png"): Promise<void> {
+  const file = new File([blob], filename, { type: "image/png" });
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], text });
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  // writeText can stay pending forever without page focus; don't let it hold the UI.
+  try {
+    await Promise.race([navigator.clipboard.writeText(text), new Promise((r) => setTimeout(r, 1500))]);
+  } catch { /* clipboard not available */ }
+}
+
+export async function generateShareImage(
+  alerts: ActiveAlert[],
+  theme: "light" | "dark" = "dark",
+  summary?: ShareSummary,
+): Promise<Blob> {
   const polygonsData = await getPolygons();
   const mapCanvas = await captureCurrentMapView(alerts, polygonsData, theme);
 
@@ -259,9 +394,13 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
     ctx.fillText("מפה שקופה", SIZE - 30, 80);
   }
 
+  if (summary) {
+    drawSummary(ctx, summary, SIZE, overlayRgb, textColor, textColorSoft);
+  }
+
   // Legend — larger than Telegram screenshots
   const activeStatuses = new Set(alerts.map((a) => a.status));
-  if (activeStatuses.size > 0) {
+  if (!summary && activeStatuses.size > 0) {
     const legendEntries = ["alert", "uav", "pre_alert", "terrorist", "after_alert", "clear"].filter(
       (s) => activeStatuses.has(s),
     );
@@ -348,6 +487,68 @@ export async function generateShareImage(alerts: ActiveAlert[], theme: "light" |
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Canvas toBlob failed"))), "image/png", 0.9);
   });
+}
+
+function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): string {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+  return t + "…";
+}
+
+function drawSummary(
+  ctx: CanvasRenderingContext2D,
+  summary: ShareSummary,
+  SIZE: number,
+  overlayRgb: string,
+  textColor: string,
+  textColorSoft: string,
+) {
+  const right = SIZE - 44;
+  const maxW = SIZE - 88;
+  const lineH = 40;
+  // Bottom of the block sits above the URL badge (bottom-left, ~80px tall).
+  const blockBottom = SIZE - 112;
+  const blockH = 58 + (summary.subtitle ? 40 : 0) + summary.lines.length * lineH;
+  const top = blockBottom - blockH;
+
+  const grad = ctx.createLinearGradient(0, top - 60, 0, SIZE);
+  grad.addColorStop(0, `rgba(${overlayRgb},0)`);
+  grad.addColorStop(0.25, `rgba(${overlayRgb},0.8)`);
+  grad.addColorStop(1, `rgba(${overlayRgb},0.94)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, top - 60, SIZE, SIZE - top + 60);
+
+  ctx.direction = "rtl";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "alphabetic";
+  let y = top + 44;
+
+  ctx.beginPath();
+  ctx.arc(right - 12, y - 14, 12, 0, Math.PI * 2);
+  ctx.fillStyle = summary.accent;
+  ctx.fill();
+  ctx.font = `bold 46px ${uiFont()}`;
+  ctx.fillStyle = textColor;
+  ctx.fillText(fitText(ctx, summary.title, maxW - 40), right - 36, y);
+  y += 44;
+
+  if (summary.subtitle) {
+    ctx.font = `500 26px ${uiFont()}`;
+    ctx.fillStyle = textColorSoft;
+    ctx.globalAlpha = 0.75;
+    ctx.fillText(fitText(ctx, summary.subtitle, maxW), right, y);
+    ctx.globalAlpha = 1;
+    y += 40;
+  }
+
+  ctx.font = `500 28px ${uiFont()}`;
+  ctx.fillStyle = textColorSoft;
+  for (const line of summary.lines) {
+    y += 4;
+    ctx.fillText(fitText(ctx, line, maxW), right, y);
+    y += lineH - 4;
+  }
 }
 
 export function buildShareText(alerts: ActiveAlert[]): string {

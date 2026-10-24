@@ -31,6 +31,9 @@ interface TzevaAdomBatch {
     }[];
 }
 
+/** Newest backend history entries to load (each entry is one status for a batch of zones). */
+const HISTORY_LIMIT = 300;
+
 const CATEGORY_MAP: Record<string | number, { category: number | string; desc: string }> = {
   1: { category: 1, desc: "ירי רקטות וטילים" },
   2: { category: 2, desc: "חדירת כלי טיס עוין" },
@@ -63,21 +66,23 @@ function threatToCategory(threat: number): { category: number; desc: string } {
 
 export function useHistoryAlerts(enabled = true) {
   const [batches, setBatches] = useState<AlertBatch[]>([]);
+  const [alerts, setAlerts] = useState<SortedAlert[]>([]);
   const [fbBatches, setFbBatches] = useState<AlertBatch[]>([]);
   const [externalBatches, setExternalBatches] = useState<AlertBatch[]>([]);
   const [loading, setLoading] = useState(false);
   const loadingRef = useRef(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // 1. Firebase Listen
+  // 1. Firebase Listen (dev simulation substitutes its own history)
   useEffect(() => {
     if (!enabled) return;
-    const historyRef = query(ref(rtdb, "/public_state/history"), limitToLast(200));
-    const unsubscribe = onValue(historyRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) return;
-      
-      const converted = Object.entries(data).map(([id, e]: [string, any]) => {
+    const apply = (data: Record<string, FirebaseHistoryEntry> | null) => {
+      if (!data) {
+        setFbBatches([]);
+        return;
+      }
+
+      const converted = Object.entries(data).map(([id, e]) => {
         const entry = e as FirebaseHistoryEntry;
         const cfg = CATEGORY_MAP[entry.status] || CATEGORY_MAP["alert"];
         const ts = entry.timestamp;
@@ -101,8 +106,32 @@ export function useHistoryAlerts(enabled = true) {
         return { id: `fb_${id}`, startTs: ts, endTs: ts, alerts, byCategory: byCat };
       });
       setFbBatches(converted);
+    };
+
+    const listenFirebase = () => {
+      const historyRef = query(ref(rtdb, "/public_state/history"), limitToLast(HISTORY_LIMIT));
+      const unsubscribe = onValue(historyRef, (snapshot) => apply(snapshot.val()));
+      return () => off(historyRef, "value", unsubscribe);
+    };
+
+    if (process.env.NODE_ENV !== "development") return listenFirebase();
+
+    let stop: (() => void) | undefined;
+    let cancelled = false;
+    void import("@/lib/devSim").then((sim) => {
+      if (cancelled) return;
+      if (sim.getDevSource() !== "sim") {
+        stop = listenFirebase();
+        return;
+      }
+      const push = () => apply(Object.fromEntries(sim.getSim().history.slice(-HISTORY_LIMIT).map((e, i) => [`sim${i}`, e])));
+      push();
+      stop = sim.subscribeSim(push);
     });
-    return () => off(historyRef, "value", unsubscribe);
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
   }, [enabled]);
 
   // 2. Fetch External
@@ -244,8 +273,10 @@ export function useHistoryAlerts(enabled = true) {
     }
 
     setBatches(finalBatches);
+    setAlerts(uniqueAlerts);
     setHasMore(false);
   }, [fbBatches, externalBatches]);
 
-  return { batches, loading, hasMore, loadMore: fetchExternal };
+  /** `alerts`: every deduped alert row, newest first (salvo detection works on these). */
+  return { batches, alerts, loading, hasMore, loadMore: fetchExternal };
 }
