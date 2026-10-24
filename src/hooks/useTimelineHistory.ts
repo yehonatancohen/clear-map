@@ -39,7 +39,8 @@ const CATEGORY_MAP: Record<string | number, { category: number | string; desc: s
   2: { category: 2, desc: "חדירת כלי טיס עוין" },
   3: { category: 3, desc: "חדירת מחבלים" },
   6: { category: 2, desc: "חדירת כלי טיס עוין" },
-  10: { category: "pre_alert", desc: "התרעה מוקדמת" },
+  // Oref history ids: 10 = terror infiltration, 13 = ended, 14 = early warning
+  10: { category: 3, desc: "חדירת מחבלים" },
   13: { category: "clear", desc: "האירוע הסתיים" },
   14: { category: "pre_alert", desc: "התקרבו למרחב מוגן" },
   "alert": { category: 1, desc: "ירי רקטות וטילים" },
@@ -94,7 +95,7 @@ export function useHistoryAlerts(enabled = true) {
           date: dateStr,
           time: dateObj.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
           alertDate: dateObj.toISOString(),
-          category: entry.status === "pre_alert" ? 10 : (typeof cfg.category === 'number' ? cfg.category : 1),
+          category: entry.status === "pre_alert" ? 14 : (typeof cfg.category === 'number' ? cfg.category : 1),
           status: entry.status,
           category_desc: cfg.desc,
           matrix_id: 0, rid: 0, _ts: ts,
@@ -156,13 +157,14 @@ export function useHistoryAlerts(enabled = true) {
             const ts = parseOrefDate(alert.date, alert.time);
             let status = "";
             const desc = alert.category_desc || "";
-            if (desc.includes("ניתן לצאת") || desc.includes("הסתיים")) status = "clear";
+            if (desc.includes("ניתן לצאת") || desc.includes("הסתיים") || desc.includes("הוסר החשש")) status = "clear";
             else if (
               desc.includes("בדקות הקרובות") || desc.includes("מודיעין") ||
               desc.includes("התרעה מוקדמת") || desc.includes("מוקדמת") ||
               desc.includes("התקרבו למרחב") ||
-              Number(alert.category) === 10 || Number(alert.category) === 14
+              Number(alert.category) === 14
             ) status = "pre_alert";
+            else if (desc.includes("מחבלים") || Number(alert.category) === 10) status = "terrorist";
 
             const cfg = status ? CATEGORY_MAP[status] : (CATEGORY_MAP[alert.category] || CATEGORY_MAP[1]);
             const byCat = new Map<number | string, string[]>();
@@ -235,7 +237,7 @@ export function useHistoryAlerts(enabled = true) {
 
     function statusGroup(alert: SortedAlert): string {
         const s = alert.status || "";
-        if (s === "pre_alert" || Number(alert.category) === 10 || Number(alert.category) === 14) return "pre_alert";
+        if (s === "pre_alert" || Number(alert.category) === 14) return "pre_alert";
         if (s === "clear") return "clear";
         return "alert";
     }
