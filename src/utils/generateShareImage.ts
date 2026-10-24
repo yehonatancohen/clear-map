@@ -306,11 +306,14 @@ async function captureCurrentMapView(
         );
 
         if (!collides) {
-            ctx.strokeStyle = "black";
-            ctx.lineWidth = isLarge ? 4 : 3;
-            ctx.strokeText(text, point.x, point.y);
-            ctx.fillStyle = isLarge ? "rgba(255, 255, 255, 0.85)" : "rgba(255, 255, 255, 0.75)";
+            // Soft halo like the live map's text-shadow; a stroked outline reads as a black box.
+            ctx.shadowColor = "rgba(0,0,0,0.9)";
+            ctx.shadowBlur = 4;
+            ctx.fillStyle = isLarge ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.8)";
             ctx.fillText(text, point.x, point.y);
+            ctx.fillText(text, point.x, point.y);
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
             occupiedRects.push(r);
         }
     }
@@ -329,11 +332,11 @@ export interface ShareSummary {
 }
 
 /** Native share sheet when the browser can share files, otherwise download + copy text. */
-export async function shareOrDownload(blob: Blob, text: string, filename = "clearmap-status.png"): Promise<void> {
+export async function shareOrDownload(blob: Blob, text: string, filename = "clearmap-status.png"): Promise<"shared" | "downloaded"> {
   const file = new File([blob], filename, { type: "image/png" });
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
     await navigator.share({ files: [file], text });
-    return;
+    return "shared";
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -345,12 +348,76 @@ export async function shareOrDownload(blob: Blob, text: string, filename = "clea
   try {
     await Promise.race([navigator.clipboard.writeText(text), new Promise((r) => setTimeout(r, 1500))]);
   } catch { /* clipboard not available */ }
+  return "downloaded";
+}
+
+/**
+ * The share image is a centered square of the map, while a phone shows a tall view
+ * (and the history panel pushes fits into the top half). Re-fit the cities into the
+ * square (leaving room for the logo and the bottom block), wait for the tiles,
+ * capture, then put the view back.
+ */
+export async function withShareView<T>(
+  cities: string[],
+  polygons: Record<string, { polygon: [number, number][] }> | null,
+  capture: () => Promise<T>,
+  /** Share of the square kept clear at the bottom: the salvo card is taller than the legend. */
+  bottomPad = 0.36,
+): Promise<T> {
+  const map = getMapInstance();
+  const container = document.querySelector("#map-root .leaflet-container") as HTMLElement | null;
+  const coords = cities.flatMap((c) => polygons?.[c]?.polygon ?? []);
+  if (!map || !container || coords.length === 0) return capture();
+
+  const L = await import("leaflet");
+  const prevCenter = map.getCenter();
+  const prevZoom = map.getZoom();
+  const prevSnap = map.options.zoomSnap;
+  const { width: w, height: h } = container.getBoundingClientRect();
+  const side = Math.min(w, h);
+  const padX = (w - side) / 2 + side * 0.06;
+  const padY = (h - side) / 2;
+  // Whole-zoom snapping can leave a nationwide wave at half the size it fits at.
+  map.options.zoomSnap = 0.25;
+  map.fitBounds(L.latLngBounds(coords.map(([lat, lng]) => L.latLng(lat, lng))), {
+    paddingTopLeft: [padX, padY + side * 0.12],
+    paddingBottomRight: [padX, padY + side * bottomPad],
+    maxZoom: 12,
+    animate: false,
+  });
+  try {
+    await waitForTiles(container);
+    return await capture();
+  } finally {
+    map.options.zoomSnap = prevSnap;
+    map.setView(prevCenter, prevZoom, { animate: false });
+  }
+}
+
+async function waitForTiles(container: HTMLElement, timeoutMs = 3000) {
+  const start = Date.now();
+  await new Promise((r) => setTimeout(r, 250)); // let Leaflet add the new tiles
+  while (Date.now() - start < timeoutMs) {
+    const tiles = [...container.querySelectorAll<HTMLImageElement>(".leaflet-tile")];
+    if (tiles.every((t) => t.complete)) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+/** "14:32 · 24.10" — a shared picture of alerts is useless without when it was true. */
+function stamp(ts: number): string {
+  const d = new Date(ts);
+  const time = d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+  const date = d.toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" });
+  return `${time} · ${date}`;
 }
 
 export async function generateShareImage(
   alerts: ActiveAlert[],
   theme: "light" | "dark" = "dark",
   summary?: ShareSummary,
+  /** When the picture was true (ms), shown in the legend header. */
+  asOf: number = Date.now(),
 ): Promise<Blob> {
   const polygonsData = await getPolygons();
   const mapCanvas = await captureCurrentMapView(alerts, polygonsData, theme);
@@ -400,7 +467,7 @@ export async function generateShareImage(
 
   // Legend — larger than Telegram screenshots
   const activeStatuses = new Set(alerts.map((a) => a.status));
-  if (!summary && activeStatuses.size > 0) {
+  if (!summary) {
     const legendEntries = ["alert", "uav", "pre_alert", "terrorist", "after_alert", "clear"].filter(
       (s) => activeStatuses.has(s),
     );
@@ -420,7 +487,7 @@ export async function generateShareImage(
     ctx.textAlign = "right";
     ctx.font = `bold 32px ${uiFont()}`;
     ctx.fillStyle = textColor;
-    ctx.fillText("מקרא", SIZE - 44, y);
+    ctx.fillText(`${legendEntries.length ? "מצב ההתרעות" : "אין התרעות פעילות"} · ${stamp(asOf)}`, SIZE - 44, y);
     y += 50;
 
     const counts: Record<string, number> = {};
@@ -435,7 +502,7 @@ export async function generateShareImage(
       ctx.fillStyle = meta.dot;
       ctx.fill();
       ctx.fillStyle = textColorSoft;
-      const labelText = counts[status] > 1 ? `${meta.label} (${counts[status]})` : meta.label;
+      const labelText = `${meta.label} · ${counts[status] === 1 ? "יישוב אחד" : `${counts[status]} יישובים`}`;
       ctx.fillText(labelText, SIZE - 76, y);
       y += rowH;
     }
@@ -551,9 +618,12 @@ function drawSummary(
   }
 }
 
-export function buildShareText(alerts: ActiveAlert[]): string {
+/** Cities listed per status in the share text; a nationwide wave has hundreds. */
+const SHARE_TEXT_MAX_CITIES = 30;
+
+export function buildShareText(alerts: ActiveAlert[], asOf: number = Date.now()): string {
   if (alerts.length === 0) {
-    return "מפה שקופה - אין התרעות פעילות כרגע\n\nhttps://clearmap.co.il";
+    return `מפה שקופה - אין התרעות פעילות (${stamp(asOf)})\n\nhttps://clearmap.co.il`;
   }
 
   const counts: Record<string, number> = {};
@@ -566,13 +636,15 @@ export function buildShareText(alerts: ActiveAlert[]): string {
     }
   }
 
-  let text = `מפה שקופה - ${alerts.length} התרעות פעילות\n\n`;
+  let text = `מפה שקופה - ${alerts.length} התרעות פעילות (${stamp(asOf)})\n\n`;
   const order = ["alert", "uav", "terrorist", "pre_alert", "after_alert", "clear"];
   for (const status of order) {
     if (!counts[status]) continue;
     const meta = STATUS_META[status];
     const cities = citiesByStatus[status];
-    text += `${meta.emoji} ${meta.label}: ${cities.join(", ")}\n`;
+    const shown = cities.slice(0, SHARE_TEXT_MAX_CITIES).join(", ");
+    const more = cities.length > SHARE_TEXT_MAX_CITIES ? ` ועוד ${cities.length - SHARE_TEXT_MAX_CITIES}` : "";
+    text += `${meta.emoji} ${meta.label} (${cities.length}): ${shown}${more}\n`;
   }
 
   text += "\nhttps://clearmap.co.il";

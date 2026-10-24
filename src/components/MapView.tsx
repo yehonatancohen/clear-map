@@ -27,7 +27,7 @@ import SalvoReplayBar from "./SalvoReplayBar";
 import { useHistorySalvos } from "@/hooks/useSalvos";
 import { useSalvoReplay } from "@/hooks/useSalvoReplay";
 import { salvoShareSummary, salvoShareText, salvoStateAt, type Salvo } from "@/lib/salvos";
-import { generateShareImage, shareOrDownload } from "@/utils/generateShareImage";
+import { generateShareImage, shareOrDownload, withShareView } from "@/utils/generateShareImage";
 import { getMapInstance } from "@/lib/mapRef";
 import { useHistoryAlerts, SortedAlert } from "@/hooks/useTimelineHistory";
 import CityLabels from "./CityLabels";
@@ -282,47 +282,6 @@ function salvoRows(s: Salvo, t: number | null): SortedAlert[] {
     _ts: s.firstAlertTs,
     status,
   }));
-}
-
-/**
- * The share image is a centered square of the map, while on a phone the history
- * panel pushes the fit into the top half. Re-fit for the square (leaving room for
- * the logo and the summary block), wait for the tiles, capture, then put the view back.
- */
-async function withShareView<T>(cities: string[], polygons: PolygonLookup | null, capture: () => Promise<T>): Promise<T> {
-  const map = getMapInstance();
-  const container = document.querySelector("#map-root .leaflet-container") as HTMLElement | null;
-  const coords = cities.flatMap((c) => polygons?.[c]?.polygon ?? []);
-  if (!map || !container || coords.length === 0) return capture();
-
-  const prevCenter = map.getCenter();
-  const prevZoom = map.getZoom();
-  const { width: w, height: h } = container.getBoundingClientRect();
-  const side = Math.min(w, h);
-  const padX = (w - side) / 2 + side * 0.06;
-  const padY = (h - side) / 2;
-  map.fitBounds(L.latLngBounds(coords.map(([lat, lng]) => L.latLng(lat, lng))), {
-    paddingTopLeft: [padX, padY + side * 0.16],
-    paddingBottomRight: [padX, padY + side * 0.36],
-    maxZoom: 12,
-    animate: false,
-  });
-  try {
-    await waitForTiles(container);
-    return await capture();
-  } finally {
-    map.setView(prevCenter, prevZoom, { animate: false });
-  }
-}
-
-async function waitForTiles(container: HTMLElement, timeoutMs = 3000) {
-  const start = Date.now();
-  await new Promise((r) => setTimeout(r, 250)); // let Leaflet add the new tiles
-  while (Date.now() - start < timeoutMs) {
-    const tiles = [...container.querySelectorAll<HTMLImageElement>(".leaflet-tile")];
-    if (tiles.every((t) => t.complete)) return;
-    await new Promise((r) => setTimeout(r, 100));
-  }
 }
 
 export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean }) {

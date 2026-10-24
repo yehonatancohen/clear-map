@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ActiveAlert } from "@/types";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
-import { generateShareImage, buildShareText, shareOrDownload } from "@/utils/generateShareImage";
+import { generateShareImage, buildShareText, shareOrDownload, withShareView } from "@/utils/generateShareImage";
 import type { MapMode } from "./TimelineModeToggle";
 
 import { TopBar } from "./TopBar";
@@ -127,13 +127,19 @@ export default function IntelPanel({
       await new Promise((r) => setTimeout(r, 350));
       // In history mode, share whatever batch the user has open instead of the live alerts.
       const shareAlerts = mode === "history" ? (historyAlerts ?? []) : alerts;
-      const blob = await generateShareImage(shareAlerts, theme);
-      await shareOrDownload(blob, buildShareText(shareAlerts));
-      // show success toast
+      // History batches carry their own time (s or ms); live is "now".
+      const latest = Math.max(0, ...shareAlerts.map((a) => a.timestamp));
+      const asOf = mode === "history" && latest > 0 ? (latest < 1e12 ? latest * 1000 : latest) : Date.now();
+      const blob = await withShareView(shareAlerts.map((a) => a.city_name_he), polygons, () =>
+        generateShareImage(shareAlerts, theme, undefined, asOf),
+        // Legend: header + one row per status, about 0.1 + 0.04 per row of the square.
+        0.12 + 0.04 * new Set(shareAlerts.map((a) => a.status)).size,
+      );
+      const outcome = await shareOrDownload(blob, buildShareText(shareAlerts, asOf));
       const successAlert: ActiveAlert & { toastId: number } = {
         id: "share_ok",
         city_name: "share_ok",
-        city_name_he: "התמונה הורדה בהצלחה",
+        city_name_he: outcome === "shared" ? "שותף" : "התמונה הורדה והטקסט הועתק",
         status: "info",
         timestamp: Date.now() / 1000,
         is_double: false,
