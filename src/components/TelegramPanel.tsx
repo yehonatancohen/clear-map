@@ -15,7 +15,7 @@ export function TelegramPanel({
 }: TelegramPanelProps) {
   const [embedLight, setEmbedLight] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
-  const embedUrl = `https://clearmap.co.il/embed${embedLight ? "?theme=light" : ""}`;
+  const embedUrl = `https://www.clearmap.co.il/embed${embedLight ? "?theme=light" : ""}`;
   const embedCode = `<iframe src="${embedUrl}" width="100%" height="460" style="border:0;border-radius:12px" loading="lazy" allow="fullscreen" title="מפת התרעות חיה – מפה שקופה"></iframe>`;
 
   return (
