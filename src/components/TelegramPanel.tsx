@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface TelegramPanelProps {
   broadcastUav: boolean;
   setBroadcastUav: (v: boolean) => void;
@@ -11,6 +13,11 @@ interface TelegramPanelProps {
 export function TelegramPanel({
   broadcastUav, setBroadcastUav, broadcastEllipse, setBroadcastEllipse, onClose,
 }: TelegramPanelProps) {
+  const [embedLight, setEmbedLight] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
+  const embedUrl = `https://clearmap.co.il/embed${embedLight ? "?theme=light" : ""}`;
+  const embedCode = `<iframe src="${embedUrl}" width="100%" height="460" style="border:0;border-radius:12px" loading="lazy" allow="fullscreen" title="מפת התרעות חיה – מפה שקופה"></iframe>`;
+
   return (
     <div
       className="absolute top-14 sm:top-16 right-3 z-[1001] liquid-glass glass-pop rounded-3xl p-4 sm:p-5 w-[calc(100vw-24px)] sm:w-96 glass-overlay max-w-sm max-h-[85vh] overflow-y-auto scrollbar-thin flex flex-col"
@@ -26,8 +33,55 @@ export function TelegramPanel({
       </div>
 
       <div className="space-y-6 overflow-y-auto scrollbar-thin pb-2">
-        {/* Broadcast */}
+        {/* Embed */}
         <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="bg-emerald-500/20 p-1.5 rounded-lg text-emerald-400">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+              </svg>
+            </div>
+            <h4 className="text-[14px] font-bold text-white">הטמעה באתר</h4>
+          </div>
+          <p className="text-[12px] text-white/60 leading-relaxed pr-8">
+            מפה חיה וקלה להטמעה בכתבות ובעמודי חדשות. מתעדכנת אוטומטית, בחינם, עם קישור למפה שקופה.
+          </p>
+          <div className="pr-8 space-y-2">
+            <MiniToggle label="רקע בהיר" checked={embedLight} accentClass="bg-emerald-600" onChange={() => setEmbedLight(!embedLight)} />
+            <textarea
+              readOnly
+              dir="ltr"
+              value={embedCode}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label="קוד הטמעה"
+              className="w-full h-20 resize-none bg-black/30 border border-white/10 rounded-lg p-2 text-[10px] font-mono text-white/80 focus:outline-none focus:border-white/30"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(embedCode).then(() => {
+                    setEmbedCopied(true);
+                    setTimeout(() => setEmbedCopied(false), 2000);
+                  }).catch(() => {});
+                }}
+                className="flex-1 bg-emerald-600/20 text-emerald-300 border border-emerald-600/30 rounded-xl py-2 text-[12px] font-bold hover:bg-emerald-600/30 transition-[background-color,transform] duration-150 active:scale-[0.98]"
+              >
+                {embedCopied ? "הועתק ✓" : "העתק קוד הטמעה"}
+              </button>
+              <a
+                href={embedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white/5 text-white/80 border border-white/10 rounded-xl px-3 py-2 text-[12px] font-bold hover:bg-white/10"
+              >
+                תצוגה מקדימה
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Broadcast */}
+        <div className="space-y-3 pt-4 border-t border-white/5">
           <div className="flex items-center gap-2">
             <div className="bg-blue-500/20 p-1.5 rounded-lg text-blue-400">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -71,6 +125,11 @@ export function TelegramPanel({
           </div>
           <p className="text-[12px] text-white/60 leading-relaxed pr-8">
             ניתן להוסיף את <strong className="text-white">@ClearMapBot</strong> לערוץ הטלגרם שלכם.
+          </p>
+          <p className="text-[12px] text-white/60 leading-relaxed pr-8">
+            רוצים הודעה אישית רק על האזור שלכם? שלחו לבוט בצ&apos;אט פרטי{" "}
+            <code className="bg-white/10 px-1 rounded text-blue-300">/city</code> ושם היישוב, ו־
+            <code className="bg-white/10 px-1 rounded text-blue-300">/status</code> לבדיקת המצב.
           </p>
           <div className="pr-8 space-y-2">
             <div className="bg-white/5 rounded-xl p-3 border border-white/5 space-y-2">

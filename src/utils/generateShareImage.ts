@@ -1,6 +1,7 @@
 import { ActiveAlert } from "@/types";
 import { getMapInstance } from "@/lib/mapRef";
 import { CITY_RANKINGS, getLabelHierarchy } from "@/components/CityLabels";
+import { fetchPolygons } from "@/hooks/usePolygons";
 
 // Canvas text uses the same family the page resolved (next/font hashes the name)
 const uiFont = () => getComputedStyle(document.body).fontFamily || "sans-serif";
@@ -58,8 +59,7 @@ let cachedPolygons: Record<string, { polygon: [number, number][] }> | null = nul
 async function getPolygons() {
     if (cachedPolygons) return cachedPolygons;
     try {
-        const res = await fetch("/data/polygons.json");
-        cachedPolygons = await res.json();
+        cachedPolygons = await fetchPolygons();
         return cachedPolygons;
     } catch {
         return null;

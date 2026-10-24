@@ -15,6 +15,10 @@ import { AlertsPanel } from "./AlertsPanel";
 import { StatusBar } from "./StatusBar";
 import { ToastContainer } from "./ToastContainer";
 import { PwaInstallModal } from "./PwaInstallModal";
+import { MyPeoplePanel } from "./MyPeoplePanel";
+import { ShelterCard } from "./ShelterCard";
+import type { PolygonLookup } from "@/hooks/usePolygons";
+import { useMyZones, useZoneStatusLookup, ZONE_META } from "@/hooks/useZoneStatus";
 
 interface IntelPanelProps {
   alerts: ActiveAlert[];
@@ -27,6 +31,7 @@ interface IntelPanelProps {
   cityList?: string[];
   /** Alerts for the currently-selected history batch, shown when mode === "history". Used by the Share button so it captures what's actually on screen. */
   historyAlerts?: ActiveAlert[];
+  polygons?: PolygonLookup | null;
 }
 
 export default function IntelPanel({
@@ -39,6 +44,7 @@ export default function IntelPanel({
   onModeChange,
   cityList: cityListProp,
   historyAlerts,
+  polygons = null,
 }: IntelPanelProps) {
   // ── Panel visibility ──────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
@@ -46,6 +52,7 @@ export default function IntelPanel({
   const [aboutView, setAboutView] = useState<"about" | "settings">("about");
   const [showLegend, setShowLegend] = useState(false);
   const [showTelegramInfo, setShowTelegramInfo] = useState(false);
+  const [showPeople, setShowPeople] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [showInstallTutorial, setShowInstallTutorial] = useState(false);
   const [, setTick] = useState(0);
@@ -87,6 +94,18 @@ export default function IntelPanel({
   // ── Settings / notifications ──────────────────────────────────────────────
   const { settings, updateSettings, toggleCity, userCoords, permission, requestPermission } = useNotificationSettings();
   usePushSubscription(settings, userCoords);
+
+  // ── My people / my zones ──────────────────────────────────────────────────
+  const statusOf = useZoneStatusLookup(alerts);
+  const { locationZone, zones: myZones } = useMyZones(polygons);
+  const peopleBadge = (() => {
+    let best: { color: string; severity: number } | null = null;
+    for (const p of settings.people ?? []) {
+      const meta = ZONE_META[statusOf(p.city).state];
+      if (meta.severity <= 2 && (!best || meta.severity < best.severity)) best = meta;
+    }
+    return best?.color ?? null;
+  })();
   const [cityList, setCityList] = useState<string[]>(cityListProp ?? []);
   const [citySearch, setCitySearch] = useState("");
 
@@ -221,24 +240,36 @@ export default function IntelPanel({
   const counts = alerts.reduce((acc, a) => { acc[a.status] = (acc[a.status] || 0) + 1; return acc; }, {} as Record<string, number>);
   const hasAlerts = alerts.length > 0;
 
-  function closeAll() { setIsOpen(false); setShowAbout(false); setShowLegend(false); setShowTelegramInfo(false); }
+  function closeAll() { setIsOpen(false); setShowAbout(false); setShowLegend(false); setShowTelegramInfo(false); setShowPeople(false); }
 
   return (
     <>
       <TopBar
         alertCount={alerts.length}
         isOpen={isOpen}
-        onToggleIntel={() => { setIsOpen(!isOpen); setShowAbout(false); setShowLegend(false); setShowTelegramInfo(false); }}
+        onToggleIntel={() => { const next = !isOpen; closeAll(); setIsOpen(next); }}
         showAbout={showAbout}
-        onToggleAbout={() => { setShowAbout(!showAbout); setIsOpen(false); setShowLegend(false); setShowTelegramInfo(false); setAboutView("about"); }}
+        onToggleAbout={() => { const next = !showAbout; closeAll(); setShowAbout(next); setAboutView("about"); }}
         showLegend={showLegend}
-        onToggleLegend={() => { setShowLegend(!showLegend); setShowAbout(false); setIsOpen(false); setShowTelegramInfo(false); }}
+        onToggleLegend={() => { const next = !showLegend; closeAll(); setShowLegend(next); }}
         mode={mode}
         onModeChange={onModeChange}
         isCapturing={isCapturing}
         onShare={handleShare}
         onLogoSecretTap={handleLogoSecretTap}
+        showPeople={showPeople}
+        onTogglePeople={() => { const next = !showPeople; closeAll(); setShowPeople(next); }}
+        peopleBadge={peopleBadge}
       />
+
+      {showPeople && (
+        <MyPeoplePanel
+          cityList={cityList}
+          statusOf={statusOf}
+          locationZone={locationZone}
+          onClose={() => setShowPeople(false)}
+        />
+      )}
 
       {showLegend && <LegendPanel onClose={() => setShowLegend(false)} />}
 
@@ -287,8 +318,15 @@ export default function IntelPanel({
         <StatusBar counts={counts} onClick={() => { closeAll(); setIsOpen(true); }} />
       )}
 
+      {!isOpen && !showPeople && mode === "live" && (
+        <ShelterCard
+          zones={myZones.map((zone) => ({ zone, status: statusOf(zone), isLocation: zone === locationZone }))}
+          raised={hasAlerts}
+        />
+      )}
+
       {/* Disclaimer */}
-      {showDisclaimer && !showAbout && !showLegend && !showTelegramInfo && !isOpen && (
+      {showDisclaimer && !showAbout && !showLegend && !showTelegramInfo && !showPeople && !isOpen && (
         <div className="absolute top-16 left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[480px] z-[2000] pointer-events-none" dir="rtl">
           <div className="liquid-glass border-red-500/35 rounded-2xl px-3 py-2 pointer-events-auto flex items-center gap-2">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-400 flex-shrink-0">

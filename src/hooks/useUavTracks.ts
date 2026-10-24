@@ -1,48 +1,31 @@
-import { useEffect, useState } from "react";
-import { ref, onValue } from "firebase/database";
-import { rtdb } from "@/lib/firebase";
+import { useMemo } from "react";
 import { UavTrack } from "@/types";
+import { useLiveSnapshot } from "./useLiveState";
 
 /**
- * Subscribes to /public_state/uav_tracks in Firebase RTDB.
- * Returns the live list of UAV flight path tracks.
+ * Live list of UAV flight path tracks (/public_state/uav_tracks).
  */
 export function useUavTracks(): UavTrack[] {
-  const [tracks, setTracks] = useState<UavTrack[]>([]);
+  const { uavTracks } = useLiveSnapshot();
 
-  useEffect(() => {
-    const tracksRef = ref(rtdb, "public_state/uav_tracks");
+  return useMemo(() => {
+    if (!uavTracks) return [];
 
-    const unsubscribe = onValue(tracksRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) {
-        setTracks([]);
-        return;
-      }
+    // Firebase omits empty arrays, so normalize fields
+    const trackList: UavTrack[] = (Object.values(uavTracks) as Record<string, unknown>[]).map((t) => ({
+      track_id: (t.track_id as string) ?? "",
+      observed: (t.observed as [number, number][]) ?? [],
+      predicted: (t.predicted as [number, number][]) ?? [],
+      heading_deg: (t.heading_deg as number) ?? 0,
+      speed_kmh: (t.speed_kmh as number) ?? 0,
+      last_updated: (t.last_updated as number) ?? 0,
+      is_test: (t.is_test as boolean) ?? false,
+    }));
 
-      // Firebase omits empty arrays, so normalize fields
-      const trackList: UavTrack[] = (Object.values(data) as Record<string, unknown>[]).map((t) => ({
-        track_id: (t.track_id as string) ?? "",
-        observed: (t.observed as [number, number][]) ?? [],
-        predicted: (t.predicted as [number, number][]) ?? [],
-        heading_deg: (t.heading_deg as number) ?? 0,
-        speed_kmh: (t.speed_kmh as number) ?? 0,
-        last_updated: (t.last_updated as number) ?? 0,
-        is_test: (t.is_test as boolean) ?? false,
-      }));
-
-      // Filter test data in production
-      const filtered = trackList.filter(t => {
-        const internalShowTest = typeof window !== 'undefined' && (window as any).__showTestAlerts === true;
-        if (!internalShowTest && process.env.NODE_ENV !== 'development' && t.is_test) return false;
-        return true;
-      });
-
-      setTracks(filtered);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return tracks;
+    // Filter test data in production
+    const showTest =
+      process.env.NODE_ENV === "development" ||
+      (typeof window !== "undefined" && (window as unknown as { __showTestAlerts?: boolean }).__showTestAlerts === true);
+    return showTest ? trackList : trackList.filter((t) => !t.is_test);
+  }, [uavTracks]);
 }

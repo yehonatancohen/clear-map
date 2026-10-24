@@ -38,3 +38,21 @@ export interface IntelligenceUpdate {
   timestamp: number;
   severity: "low" | "medium" | "high" | "critical";
 }
+/** Official "event ended" message from Oref for one zone (backend keeps 30 min). */
+export interface ClearEvent {
+  city_name_he: string;
+  ts: number;
+  source: "oref";
+}
+
+/** Written by the backend every few seconds while it is polling. */
+export interface Heartbeat {
+  ts: number;
+  oref_ok: boolean;
+}
+
+/** Someone the user follows ("my people"), tied to an exact Oref zone. */
+export interface Person {
+  name: string;
+  city: string;
+}

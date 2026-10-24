@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Analytics } from "@vercel/analytics/next";
+import { AnalyticsGate } from "@/components/AnalyticsGate";
 import Script from "next/script";
 import { Heebo } from "next/font/google";
 import { PwaRegistry } from "@/components/PwaRegistry";
@@ -99,7 +99,7 @@ export default function RootLayout({
           <PwaRegistry />
           {children}
         </SettingsProvider>
-        <Analytics />
+        <AnalyticsGate />
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-913361R4FS" strategy="afterInteractive" />
         <Script id="google-analytics" strategy="afterInteractive">
           {`

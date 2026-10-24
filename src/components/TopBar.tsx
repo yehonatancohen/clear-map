@@ -15,6 +15,10 @@ interface TopBarProps {
   isCapturing: boolean;
   onShare: () => void;
   onLogoSecretTap: () => void;
+  showPeople: boolean;
+  onTogglePeople: () => void;
+  /** Colour of the most urgent status among the user's people, if any. */
+  peopleBadge: string | null;
 }
 
 export function TopBar({
@@ -24,6 +28,7 @@ export function TopBar({
   mode, onModeChange,
   isCapturing, onShare,
   onLogoSecretTap,
+  showPeople, onTogglePeople, peopleBadge,
 }: TopBarProps) {
   return (
     <div className="absolute top-3 right-3 z-[1000] flex items-center gap-0.5 sm:gap-1 p-1 rounded-full liquid-glass glass-overlay" dir="rtl">
@@ -54,6 +59,25 @@ export function TopBar({
         </button>
       )}
 
+      {/* My people */}
+      <button
+        onClick={onTogglePeople}
+        aria-pressed={showPeople}
+        className={`glass-btn relative rounded-full h-9 w-9 sm:h-10 sm:w-10 ${showPeople ? "bg-blue-500/35" : ""}`}
+        title="האנשים שלי"
+        aria-label="האנשים שלי"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={showPeople ? "text-blue-300" : "text-white/70"}>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+        {peopleBadge && (
+          <span
+            className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0b0f17] status-dot-pulse"
+            style={{ background: peopleBadge }}
+          />
+        )}
+      </button>
+
       {/* History toggle */}
       {onModeChange && (
         <button
@@ -83,7 +107,7 @@ export function TopBar({
       <a
         href="https://buymeacoffee.com/yehonatancohen"
         target="_blank" rel="noopener noreferrer"
-        className="glass-btn rounded-full h-9 w-9 sm:h-10 sm:w-10"
+        className="glass-btn rounded-full h-9 w-9 sm:h-10 sm:w-10 max-sm:hidden"
         title="תמיכה בפרויקט"
         aria-label="תמיכה בפרויקט"
       >

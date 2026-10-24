@@ -9,7 +9,7 @@ import L from "leaflet";
 import { useFirebaseAlerts } from "@/hooks/useFirebaseAlerts";
 import { usePolygons, PolygonLookup } from "@/hooks/usePolygons";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
-import { useMergedPolygons, MergedPolygon } from "@/hooks/useMergedPolygons";
+import { useMergedPolygons } from "@/hooks/useMergedPolygons";
 import { useImpactEllipses } from "@/hooks/useImpactEllipses";
 import ImpactEllipseLayer from "./ImpactEllipse";
 import IntelPanel from "./IntelBanner";
@@ -25,28 +25,11 @@ import HistoryPanel from "./HistoryPanel";
 import { useHistoryAlerts, SortedAlert } from "@/hooks/useTimelineHistory";
 import CityLabels from "./CityLabels";
 import { SupportBanner } from "./SupportBanner";
+import ConnectionBanner from "./ConnectionBanner";
+import { THEMES, MAX_TILE_ZOOM, TileCrossfadeStyle, getMergedPolygonStyle } from "./mapStyle";
 
 const ISRAEL_CENTER: [number, number] = [32.5, 34.9];
 const DEFAULT_ZOOM = 8;
-// CARTO killed anonymous access to basemaps.cartocdn.com (every tile now comes
-// back stamped with an "API KEY REQUIRED" watermark), so the base map is served
-// from Google's road tiles instead. The dark/light look is produced with a CSS
-// filter on the tile layer (see MAP_TILE_STYLE below) rather than by swapping
-// providers, which keeps street-level zoom (~20) and avoids a second dependency.
-// `apistyle=s.e:l|p.v:off` strips every label and POI from the tiles so they
-// don't fight the app's own CityLabels overlay; the explicit "google" theme
-// keeps the fully-labelled map on purpose.
-const GOOGLE_ROADS_NOLABELS =
-  "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw&apistyle=s.e%3Al%7Cp.v%3Aoff";
-const GOOGLE_ROADS = "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&hl=iw";
-const MAX_TILE_ZOOM = 20;
-const THEMES = {
-  dark: GOOGLE_ROADS_NOLABELS,
-  light: GOOGLE_ROADS_NOLABELS,
-  google: GOOGLE_ROADS,
-};
-
-
 function ZoomListener() {
   return null;
 }
@@ -56,33 +39,6 @@ function SetViewOnLoad({ lat, lon, zoom }: { lat: number; lon: number; zoom: num
   useEffect(() => {
     map.setView([lat, lon], zoom, { animate: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return null;
-}
-
-const TILE_FADE_STYLE_ID = "tile-crossfade-style";
-// Both base layers pull the same Google road tiles; the dark/light appearance is
-// a CSS filter. `invert + hue-rotate` is the standard "dark map" trick (white
-// land -> near-black, water/parks keep a plausible hue); the extra
-// brightness/contrast/saturate knobs mute it so the coloured alert polygons
-// drawn on top stay legible. The light layer is only lightly desaturated.
-const MAP_TILE_STYLE = `
-.leaflet-tile-pane .leaflet-layer { transition: opacity 0.4s ease-in-out; }
-.leaflet-tile-pane .map-tiles-dark {
-  filter: invert(1) hue-rotate(180deg) brightness(0.78) contrast(0.95) saturate(0.42) grayscale(0.32);
-}
-.leaflet-tile-pane .map-tiles-light {
-  filter: saturate(0.5) brightness(1.03) contrast(0.95);
-}
-`;
-function TileCrossfadeStyle() {
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (document.getElementById(TILE_FADE_STYLE_ID)) return;
-    const style = document.createElement("style");
-    style.id = TILE_FADE_STYLE_ID;
-    style.textContent = MAP_TILE_STYLE;
-    document.head.appendChild(style);
   }, []);
   return null;
 }
@@ -298,36 +254,6 @@ function haversineKm(a: [number, number], b: [number, number]): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function getMergedPolygonStyle(mp: MergedPolygon, isNew: boolean) {
-  const s = mp.status || "alert";
-  const colorMap: Record<string, string> = {
-    pre_alert: "#FF6A00",
-    alert: "#FF2A2A",
-    after_alert: "#ff2a2a6c",
-    uav: "#E040FB",
-    terrorist: "#FF0055",
-  };
-  const fillMap: Record<string, string> = {
-    pre_alert: "#FF6A00",
-    alert: "#FF2A2A",
-    after_alert: "#ff2a2a6c",
-    uav: "#E040FB",
-    terrorist: "#FF0055",
-  };
-  return {
-    color: colorMap[s] || "#ef4444",
-    weight: 2,
-    fillColor: fillMap[s] || "#ef4444",
-    fillOpacity:
-      s === "after_alert" ? 0.25 :
-        mp.is_double ? 0.6 : 0.5,
-    opacity: s === "after_alert" ? 0.5 : 1,
-    className:
-      isNew ? "alert-polygon-new" :
-        mp.is_double && s === "alert" ? "alert-polygon-double" : "",
-  };
-}
-
 export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean }) {
   const alerts = useFirebaseAlerts();
   const polygons = usePolygons();
@@ -337,13 +263,14 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setThemeState] = useState<"light" | "dark">(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("map_theme");
+      let saved: string | null = null;
+      try { saved = localStorage.getItem("map_theme"); } catch { /* storage blocked */ }
       if (saved === "light" || saved === "dark") return saved;
     }
     return "dark";
   });
   const setTheme = (t: "light" | "dark") => {
-    localStorage.setItem("map_theme", t);
+    try { localStorage.setItem("map_theme", t); } catch { /* storage blocked */ }
     setThemeState(t);
   };
   const containerRef = useRef<HTMLDivElement>(null);
@@ -457,10 +384,13 @@ export default function MapView({ isBroadcast = false }: { isBroadcast?: boolean
           onModeChange={setMode}
           cityList={polygons ? Object.keys(polygons).sort() : []}
           historyAlerts={historyMappedAlerts}
+          polygons={polygons}
         />
       )}
       {!isBroadcast && <LiveIndicator mode={mode} />}
-      {!isBroadcast && <SupportBanner />}
+      {/* No donation ask mid-salvo; it would also cover the status bar and shelter card */}
+      {!isBroadcast && alerts.length === 0 && <SupportBanner />}
+      {!isBroadcast && mode === "live" && <ConnectionBanner />}
       <MapContainer
         center={initialCenter}
         zoom={initialZoom}

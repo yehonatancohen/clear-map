@@ -1,8 +1,7 @@
-import { useEffect, useState, useRef } from "react";
-import { ref, onValue } from "firebase/database";
-import { rtdb } from "@/lib/firebase";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { ActiveAlert } from "@/types";
 import { useNotificationSettings } from "./useNotificationSettings";
+import { useLiveSnapshot } from "./useLiveState";
 
 /** Great-circle distance in km between two [lat, lng] points. */
 function haversineKm(a: [number, number], b: [number, number]): number {
@@ -18,22 +17,36 @@ function haversineKm(a: [number, number], b: [number, number]): number {
 /** Location proximity radius in km (matches backend's 15km). */
 const LOCATION_RADIUS_KM = 15;
 
+function showTestAlerts(): boolean {
+  if (process.env.NODE_ENV === "development") return true;
+  return typeof window !== "undefined" && (window as unknown as { __showTestAlerts?: boolean }).__showTestAlerts === true;
+}
+
 /**
- * Subscribes to /public_state/active_alerts in Firebase RTDB.
- * Returns the live list of active alerts (updates in real-time).
+ * Live list of active alerts (from the shared live store) plus local
+ * notifications for the zones this user follows.
  *
  * Notifications are batched:
  *  - pre_alerts → grouped by region (צפון, דרום, מרכז, ירושלים)
  *  - alerts/uav/terrorist → single notification per type with city names listed
+ *  - "you can leave" → only on an official Oref "event ended" message, never
+ *    just because a zone disappeared from the map (timeouts aren't clearance)
  */
 export function useFirebaseAlerts(): ActiveAlert[] {
-  const [alerts, setAlerts] = useState<ActiveAlert[]>([]);
-  const prevAlertsRef = useRef<ActiveAlert[]>([]);
-  const activeUserAlertsRef = useRef<Map<string, ActiveAlert>>(new Map());
-  const isFirstLoadRef = useRef(true);
+  const live = useLiveSnapshot();
   const { settings, userCoords } = useNotificationSettings();
   const [centroids, setCentroids] = useState<Record<string, [number, number]> | null>(null);
   const [cityRegions, setCityRegions] = useState<Record<string, string>>({});
+
+  // Settings and GPS change often; reading them through refs keeps the
+  // notification logic from re-running (and re-notifying) on every change.
+  const ctxRef = useRef({ settings, userCoords, centroids, cityRegions });
+  useEffect(() => {
+    ctxRef.current = { settings, userCoords, centroids, cityRegions };
+  }, [settings, userCoords, centroids, cityRegions]);
+
+  const prevAlertsRef = useRef<ActiveAlert[] | null>(null);
+  const seenClearsRef = useRef<Record<string, number> | null>(null);
 
   // Load city-to-region mapping
   useEffect(() => {
@@ -53,179 +66,136 @@ export function useFirebaseAlerts(): ActiveAlert[] {
     }
   }, [settings.currentLocation]);
 
+  const alerts = useMemo((): ActiveAlert[] => {
+    if (!live.alerts) return [];
+    const list = Object.values(live.alerts).filter((a) => a && typeof a === "object" && a.city_name_he);
+    return showTestAlerts() ? list : list.filter((a) => !a.is_test);
+  }, [live.alerts]);
+
+  // ── New alerts ────────────────────────────────────────────────────────────
   useEffect(() => {
-    const alertsRef = ref(rtdb, "public_state/active_alerts");
+    if (live.alerts === null) return; // nothing received yet
 
-    const unsubscribe = onValue(alertsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (!data) {
-        // If all alerts are gone, check if we had any active ones to notify "clear"
-        if (settings.enabled && settings.leaveShelterAlerts) {
-          const endedAlerts: ActiveAlert[] = [];
-          activeUserAlertsRef.current.forEach((a) => {
-            if (["alert", "uav", "terrorist", "after_alert"].includes(a.status)) {
-              endedAlerts.push(a);
-            }
-          });
-          if (endedAlerts.length > 0) {
-            const cityNames = endedAlerts.map((a) => a.city_name_he || a.city_name);
-            sendNotification(
-              "חזרה לשגרה",
-              `ניתן לצאת מהמרחב המוגן: ${cityNames.join(", ")}`,
-              "clear_batch"
-            );
-          }
-        }
-        activeUserAlertsRef.current.clear();
-        setAlerts([]);
-        prevAlertsRef.current = [];
-        return;
-      }
+    const prev = prevAlertsRef.current;
+    prevAlertsRef.current = alerts;
 
-      const alertList: ActiveAlert[] = Object.values(data);
-      const filtered = alertList.filter((a) => {
-        const internalShowTest = typeof window !== "undefined" && (window as any).__showTestAlerts === true;
-        if (!internalShowTest && process.env.NODE_ENV !== "development" && a.is_test) return false;
-        return true;
-      });
+    // On first data, treat only fresh alerts (< 60s old) as new so opening the
+    // app mid-salvo still notifies, but old alerts don't.
+    const prevIds = prev
+      ? new Set(prev.map((a) => a.id))
+      : new Set(alerts.filter((a) => Date.now() - a.timestamp >= 60_000).map((a) => a.id));
+    const newAlerts = alerts.filter((a) => !prevIds.has(a.id));
+    if (newAlerts.length === 0) return;
 
-      const currentFilteredIds = new Set(filtered.map((a) => a.id));
+    const { settings, cityRegions } = ctxRef.current;
+    if (!canNotify(settings.enabled)) return;
 
-      // On first load, seed tracking refs.
-      // Only mark STALE alerts (> 60s old) as "already seen" so that fresh
-      // alerts that just started are treated as new below and trigger notifications.
-      if (isFirstLoadRef.current) {
-        isFirstLoadRef.current = false;
-        for (const a of filtered) {
-          activeUserAlertsRef.current.set(a.id, a);
-        }
-        const nowSec = Date.now() / 1000;
-        prevAlertsRef.current = filtered.filter(a => nowSec - a.timestamp >= 60);
-        // Don't return — fall through so the notification code below handles fresh alerts.
-      }
-
-      // 1. Check for alerts that ENDED — batch the "return to routine" notification
-      if (settings.enabled && settings.leaveShelterAlerts) {
-        const endedAlerts: ActiveAlert[] = [];
-        activeUserAlertsRef.current.forEach((a, id) => {
-          if (!currentFilteredIds.has(id)) {
-            if (["alert", "uav", "terrorist", "after_alert"].includes(a.status)) {
-              endedAlerts.push(a);
-            }
-            activeUserAlertsRef.current.delete(id);
-          }
-        });
-        if (endedAlerts.length > 0) {
-          const cityNames = endedAlerts.map((a) => a.city_name_he || a.city_name);
-          sendNotification(
-            "חזרה לשגרה",
-            `ניתן לצאת מהמרחב המוגן: ${cityNames.join(", ")}`,
-            "clear_batch"
-          );
-        }
-      }
-
-      // 2. Check for NEW alerts — batch by status
-      if (
-        typeof window !== "undefined" &&
-        "Notification" in window &&
-        Notification.permission === "granted" &&
-        settings.enabled
-      ) {
-        const prevIds = new Set(prevAlertsRef.current.map((a) => a.id));
-        const newAlerts = filtered.filter((a) => !prevIds.has(a.id));
-
-        // Filter to only alerts this user should receive
-        const relevantAlerts: ActiveAlert[] = [];
-        for (const a of newAlerts) {
-          let shouldNotify = settings.allIsrael;
-          if (!shouldNotify && settings.selectedCities.includes(a.city_name_he || a.city_name))
-            shouldNotify = true;
-          if (!shouldNotify && settings.currentLocation && userCoords && centroids) {
-            const cityPos = centroids[a.city_name_he] || centroids[a.city_name];
-            if (cityPos) {
-              const dist = haversineKm(userCoords, cityPos);
-              if (dist <= LOCATION_RADIUS_KM) shouldNotify = true;
-            }
-          }
-
-          if (shouldNotify) {
-            if (a.status === "pre_alert" && !settings.earlyAlerts) continue;
-            activeUserAlertsRef.current.set(a.id, a);
-            relevantAlerts.push(a);
-          }
-        }
-
-        // Group by status and send batched notifications
-        if (relevantAlerts.length > 0) {
-          const byStatus: Record<string, ActiveAlert[]> = {};
-          for (const a of relevantAlerts) {
-            if (!byStatus[a.status]) byStatus[a.status] = [];
-            byStatus[a.status].push(a);
-          }
-
-          for (const [status, group] of Object.entries(byStatus)) {
-            if (status === "pre_alert") {
-              // Pre-alerts: group by region, show region names + count
-              const byRegion: Record<string, ActiveAlert[]> = {};
-              for (const a of group) {
-                const region =
-                  cityRegions[a.city_name_he] || cityRegions[a.city_name] || "אחר";
-                if (!byRegion[region]) byRegion[region] = [];
-                byRegion[region].push(a);
-              }
-
-              const regionSummaries = Object.entries(byRegion).map(
-                ([region, alerts]) => `${region} (${alerts.length})`
-              );
-              sendNotification(
-                "התרעה מוקדמת (מודיעין)",
-                regionSummaries.join(" · "),
-                `pre_alert_batch_${Date.now()}`
-              );
-            } else {
-              // Alerts/UAV/Terrorist/After_alert: one notification per type with city names
-              let title = "צבע אדום!";
-              if (status === "uav") title = "חדירת כלי טיס עוין";
-              if (status === "terrorist") title = "חדירת מחבלים";
-              if (status === "after_alert") title = "להישאר במרחב המוגן";
-
-              const cityNames = group.map((a) => a.city_name_he || a.city_name);
-              sendNotification(
-                title,
-                cityNames.join(", "),
-                `${status}_batch_${Date.now()}`
-              );
-            }
-          }
-        }
-      }
-
-      prevAlertsRef.current = filtered;
-      setAlerts(filtered);
-    });
-
-    return () => unsubscribe();
-  }, [settings, userCoords, centroids, cityRegions]);
-
-  function sendNotification(title: string, body: string, tag: string) {
-    const options = {
-      body,
-      icon: "/favicon.svg",
-      badge: "/favicon.svg",
-      vibrate: [200, 100, 200] as number[],
-      tag,
-      renotify: true,
-    };
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.showNotification(title, options);
-      });
-    } else {
-      new Notification(title, options);
+    const relevant: { alert: ActiveAlert; people: string[] }[] = [];
+    for (const a of newAlerts) {
+      if (a.status === "pre_alert" && !settings.earlyAlerts) continue;
+      const match = matchZone(a.city_name_he || a.city_name, ctxRef.current);
+      if (match) relevant.push({ alert: a, people: match.people });
     }
-  }
+    if (relevant.length === 0) return;
+
+    const byStatus: Record<string, typeof relevant> = {};
+    for (const r of relevant) (byStatus[r.alert.status] ??= []).push(r);
+
+    for (const [status, group] of Object.entries(byStatus)) {
+      const people = [...new Set(group.flatMap((g) => g.people))];
+      if (status === "pre_alert") {
+        // Pre-alerts: group by region, show region names + count
+        const byRegion: Record<string, number> = {};
+        for (const { alert: a } of group) {
+          const region = cityRegions[a.city_name_he] || cityRegions[a.city_name] || "אחר";
+          byRegion[region] = (byRegion[region] || 0) + 1;
+        }
+        const regionSummaries = Object.entries(byRegion).map(([region, n]) => `${region} (${n})`);
+        sendNotification(withPeople("התרעה מוקדמת (מודיעין)", people), regionSummaries.join(" · "), `pre_alert_batch_${Date.now()}`);
+      } else {
+        // Alerts/UAV/Terrorist/After_alert: one notification per type with city names
+        let title = "צבע אדום!";
+        if (status === "uav") title = "חדירת כלי טיס עוין";
+        if (status === "terrorist") title = "חדירת מחבלים";
+        if (status === "after_alert") title = "להישאר במרחב המוגן";
+        const cityNames = group.map(({ alert: a }) => a.city_name_he || a.city_name);
+        sendNotification(withPeople(title, people), cityNames.join(", "), `${status}_batch_${Date.now()}`);
+      }
+    }
+  }, [alerts, live.alerts]);
+
+  // ── Official "event ended" ────────────────────────────────────────────────
+  useEffect(() => {
+    if (live.clears === null) return;
+    const current: Record<string, number> = {};
+    for (const c of Object.values(live.clears)) {
+      if (c?.city_name_he && c.source === "oref") current[c.city_name_he] = c.ts;
+    }
+    const seen = seenClearsRef.current;
+    seenClearsRef.current = current;
+    if (seen === null) return; // first load: these were announced before we opened
+
+    const fresh = Object.keys(current).filter((city) => current[city] !== seen[city]);
+    const { settings } = ctxRef.current;
+    if (fresh.length === 0 || !settings.leaveShelterAlerts || !canNotify(settings.enabled)) return;
+
+    const matched: string[] = [];
+    const people: string[] = [];
+    for (const city of fresh) {
+      const m = matchZone(city, ctxRef.current);
+      if (!m) continue;
+      matched.push(city);
+      people.push(...m.people.filter((p) => !people.includes(p)));
+    }
+    if (matched.length > 0) {
+      sendNotification(withPeople("האירוע הסתיים", people), `ניתן לצאת מהמרחב המוגן: ${matched.join(", ")}`, "clear_batch");
+    }
+  }, [live.clears]);
 
   return alerts;
+}
+
+interface MatchCtx {
+  settings: ReturnType<typeof useNotificationSettings>["settings"];
+  userCoords: [number, number] | null;
+  centroids: Record<string, [number, number]> | null;
+}
+
+/** Does this user follow `city`? Returns the names of their people there. */
+function matchZone(city: string, { settings, userCoords, centroids }: MatchCtx): { people: string[] } | null {
+  const people = (settings.people ?? []).filter((p) => p.city === city).map((p) => p.name);
+  if (people.length > 0 || settings.allIsrael || settings.selectedCities.includes(city)) return { people };
+  if (settings.currentLocation && userCoords && centroids?.[city]) {
+    if (haversineKm(userCoords, centroids[city]) <= LOCATION_RADIUS_KM) return { people };
+  }
+  return null;
+}
+
+function withPeople(title: string, people: string[]): string {
+  if (people.length === 0) return title;
+  const shown = people.slice(0, 3).join(", ") + (people.length > 3 ? ` +${people.length - 3}` : "");
+  return `${title} · ${shown}`;
+}
+
+function canNotify(enabled: boolean): boolean {
+  return enabled && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted";
+}
+
+function sendNotification(title: string, body: string, tag: string) {
+  const options = {
+    body,
+    icon: "/favicon.svg",
+    badge: "/favicon.svg",
+    vibrate: [200, 100, 200] as number[],
+    tag,
+    renotify: true,
+  };
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.showNotification(title, options);
+    });
+  } else {
+    new Notification(title, options);
+  }
 }

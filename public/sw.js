@@ -1,13 +1,44 @@
+
+const DATA_CACHE = 'clearmap-data-v1';
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((k) => k.startsWith('clearmap-data-') && k !== DATA_CACHE).map((k) => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
 });
 
+// Static geo data (polygons, regions, centroids): serve from cache instantly,
+// refresh in the background. Live alert data is never cached here.
 self.addEventListener('fetch', (event) => {
-  // Basic fetch handler for PWA requirements.
+  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith('/data/')) {
+    return;
+  }
+  event.respondWith(
+    caches.open(DATA_CACHE).then((cache) =>
+      cache.match(event.request).then((cached) => {
+        const network = fetch(event.request)
+          .then((res) => {
+            if (res.ok) cache.put(event.request, res.clone());
+            return res;
+          })
+          .catch(() => cached);
+        if (cached) {
+          event.waitUntil(network);
+          return cached;
+        }
+        return network;
+      })
+    )
+  );
 });
 
 // Push notification handler — works even when all tabs are closed

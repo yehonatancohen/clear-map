@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import type { Person } from "@/types";
 
 export interface NotificationSettings {
   enabled: boolean;
@@ -9,6 +10,8 @@ export interface NotificationSettings {
   allIsrael: boolean;
   currentLocation: boolean;
   selectedCities: string[];
+  /** "My people": always notified and shown in the people panel, whatever the filters. */
+  people: Person[];
   showUavPath: boolean;
   showImpactZones: boolean;
   showMyLocation: boolean;
@@ -22,6 +25,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   allIsrael: true,
   currentLocation: false,
   selectedCities: [],
+  people: [],
   showUavPath: true,
   showImpactZones: false,
   showMyLocation: false,
@@ -46,7 +50,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   // Load from localStorage
   useEffect(() => {
-    const stored = localStorage.getItem("notification_settings_v2");
+    // Storage can be blocked (third-party iframe, strict privacy modes): fall back to defaults
+    let stored: string | null = null;
+    try { stored = localStorage.getItem("notification_settings_v2"); } catch { /* blocked */ }
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -62,7 +68,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   // Save to localStorage
   useEffect(() => {
-    localStorage.setItem("notification_settings_v2", JSON.stringify(settings));
+    try { localStorage.setItem("notification_settings_v2", JSON.stringify(settings)); } catch { /* blocked */ }
   }, [settings]);
 
   // Geolocation logic — activate when either setting needs location

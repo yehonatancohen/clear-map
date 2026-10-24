@@ -1,6 +1,6 @@
 "use client";
 
-import { useFirebaseConnection } from "@/hooks/useFirebaseConnection";
+import { useLiveHealth } from "@/hooks/useLiveState";
 import type { MapMode } from "./TimelineModeToggle";
 
 interface LiveIndicatorProps {
@@ -8,7 +8,8 @@ interface LiveIndicatorProps {
 }
 
 export default function LiveIndicator({ mode }: LiveIndicatorProps) {
-  const isConnected = useFirebaseConnection();
+  const health = useLiveHealth();
+  const isLive = health === "ok";
 
   if (mode === "history") {
     return (
@@ -27,21 +28,21 @@ export default function LiveIndicator({ mode }: LiveIndicatorProps) {
   return (
     <div
       className="absolute top-3 left-3 z-[1000] liquid-glass rounded-full px-3 py-2 flex items-center gap-1.5 glass-overlay"
-      title={isConnected ? "מחובר בזמן אמת" : "אין חיבור"}
+      title={isLive ? "מחובר בזמן אמת" : "אין חיבור"}
     >
       <span
         className={`inline-block h-2 w-2 rounded-full ${
-          isConnected
+          isLive
             ? "bg-emerald-400 status-dot-pulse"
-            : "bg-red-500"
+            : health === "connecting" ? "bg-amber-400" : "bg-red-500"
         }`}
       />
       <span
         className={`text-[11px] font-bold tracking-wide ${
-          isConnected ? "text-emerald-400" : "text-red-400"
+          isLive ? "text-emerald-400" : health === "connecting" ? "text-amber-300" : "text-red-400"
         }`}
       >
-        {isConnected ? "LIVE" : "OFFLINE"}
+        {isLive ? "LIVE" : health === "connecting" ? "..." : "OFFLINE"}
       </span>
     </div>
   );

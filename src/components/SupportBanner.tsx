@@ -11,7 +11,8 @@ export function SupportBanner() {
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
-    const dismissed = localStorage.getItem(DISMISS_KEY);
+    let dismissed: string | null = null;
+    try { dismissed = localStorage.getItem(DISMISS_KEY); } catch { /* storage blocked */ }
     if (dismissed && Date.now() - Number(dismissed) < DISMISS_COOLDOWN) return;
 
     const timer = setTimeout(() => setShowBanner(true), SHOW_DELAY_MS);
@@ -26,7 +27,7 @@ export function SupportBanner() {
 
   function dismissBanner() {
     setShowBanner(false);
-    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    try { localStorage.setItem(DISMISS_KEY, String(Date.now())); } catch { /* storage blocked */ }
   }
 
   if (!showBanner) return null;
